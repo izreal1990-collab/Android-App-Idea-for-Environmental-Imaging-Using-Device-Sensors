@@ -1,0 +1,30 @@
+# Android Studio and Gradle files
+.gradle/
+.idea/
+*.iml
+local.properties
+gradle-wrapper.jar
+
+# Build directories
+EnvironmentalImagingApp/build/
+EnvironmentalImagingApp/app/build/
+EnvironmentalImagingApp/.gradle/
+EnvironmentalImagingApp/app/.gradle/
+
+# Temporary and cache files
+*.tmp
+*.temp
+*.cache
+*.log
+
+# VSCode
+.vscode/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
