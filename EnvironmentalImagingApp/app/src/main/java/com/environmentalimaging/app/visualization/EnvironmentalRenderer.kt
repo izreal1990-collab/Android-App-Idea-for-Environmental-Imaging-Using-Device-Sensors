@@ -82,7 +82,10 @@ class EnvironmentalRenderer : GLSurfaceView.Renderer {
         trajectoryRenderer = TrajectoryRenderer()
         deviceRenderer = DeviceRenderer()
         
-        Log.d(TAG, "OpenGL ES initialized successfully")
+        // Load test data for immediate visualization
+        generateTestData()
+        
+        Log.d(TAG, "OpenGL ES initialized successfully with test data")
     }
     
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
@@ -213,6 +216,103 @@ class EnvironmentalRenderer : GLSurfaceView.Renderer {
         cameraTargetY = 0.0f
         cameraTargetZ = 0.0f
     }
+    
+
+    
+    /**
+     * Generate test data for immediate visualization
+     */
+    private fun generateTestData() {
+        try {
+            Log.d(TAG, "Generating test data for visualization")
+            
+            // Create a simple room point cloud (8x8x3 meters)
+            val testPoints = mutableListOf<Point3D>()
+            
+            // Floor points (grid pattern)
+            for (x in -40..40 step 4) {
+                for (z in -40..40 step 4) {
+                    testPoints.add(Point3D(
+                        x = x * 0.1f,
+                        y = 0f,
+                        z = z * 0.1f
+                    ))
+                }
+            }
+            
+            // Wall points (back wall)
+            for (x in -40..40 step 3) {
+                for (y in 0..30 step 3) {
+                    testPoints.add(Point3D(
+                        x = x * 0.1f,
+                        y = y * 0.1f,
+                        z = 4f
+                    ))
+                }
+            }
+            
+            // Side wall points (left wall)
+            for (z in -40..40 step 3) {
+                for (y in 0..30 step 3) {
+                    testPoints.add(Point3D(
+                        x = -4f,
+                        y = y * 0.1f,
+                        z = z * 0.1f
+                    ))
+                }
+            }
+            
+            // Add some furniture-like objects
+            // Table
+            for (x in 5..15) {
+                for (z in 5..15) {
+                    testPoints.add(Point3D(
+                        x = x * 0.1f,
+                        y = 0.8f,
+                        z = z * 0.1f
+                    ))
+                }
+            }
+            
+            // Chair
+            for (x in -15..-5) {
+                for (z in 5..15) {
+                    testPoints.add(Point3D(
+                        x = x * 0.1f,
+                        y = 0.5f,
+                        z = z * 0.1f
+                    ))
+                }
+            }
+            
+            updatePointCloud(testPoints)
+            
+            // Create a test trajectory (user walking around the room)
+            val testTrajectory = mutableListOf<DevicePose>()
+            for (i in 0..20) {
+                val angle = i * 0.3f
+                val x = 2f * kotlin.math.cos(angle.toDouble()).toFloat()
+                val z = 2f * kotlin.math.sin(angle.toDouble()).toFloat()
+                testTrajectory.add(DevicePose(
+                    position = Point3D(x, 1.7f, z),
+                    orientation = floatArrayOf(0f, angle, 0f, 0f), // Quaternion [w, x, y, z]
+                    timestamp = System.currentTimeMillis() + i * 1000L
+                ))
+            }
+            
+            updateTrajectory(testTrajectory)
+            
+            // Set current device position
+            if (testTrajectory.isNotEmpty()) {
+                updateDevicePose(testTrajectory.last())
+            }
+            
+            Log.d(TAG, "Test data generated: ${testPoints.size} points, ${testTrajectory.size} trajectory points")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error generating test data", e)
+        }
+    }
 }
 
 /**
@@ -235,20 +335,38 @@ class PointCloudRenderer {
     }
     
     init {
-        // Load and compile shaders
-        val vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, VERTEX_SHADER_CODE)
-        val fragmentShader = loadShader(GLES20.GL_FRAGMENT_SHADER, FRAGMENT_SHADER_CODE)
-        
-        // Create shader program
-        shaderProgram = GLES20.glCreateProgram()
-        GLES20.glAttachShader(shaderProgram, vertexShader)
-        GLES20.glAttachShader(shaderProgram, fragmentShader)
-        GLES20.glLinkProgram(shaderProgram)
-        
-        // Get shader handles
-        positionHandle = GLES20.glGetAttribLocation(shaderProgram, "vPosition")
-        colorHandle = GLES20.glGetAttribLocation(shaderProgram, "vColor")
-        mvpMatrixHandle = GLES20.glGetUniformLocation(shaderProgram, "uMVPMatrix")
+        try {
+            // Load and compile shaders
+            val vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, VERTEX_SHADER_CODE)
+            val fragmentShader = loadShader(GLES20.GL_FRAGMENT_SHADER, FRAGMENT_SHADER_CODE)
+            
+            if (vertexShader != 0 && fragmentShader != 0) {
+                // Create shader program
+                shaderProgram = GLES20.glCreateProgram()
+                GLES20.glAttachShader(shaderProgram, vertexShader)
+                GLES20.glAttachShader(shaderProgram, fragmentShader)
+                GLES20.glLinkProgram(shaderProgram)
+                
+                // Check program linking
+                val linkStatus = IntArray(1)
+                GLES20.glGetProgramiv(shaderProgram, GLES20.GL_LINK_STATUS, linkStatus, 0)
+                if (linkStatus[0] != 0) {
+                    // Get shader handles
+                    positionHandle = GLES20.glGetAttribLocation(shaderProgram, "vPosition")
+                    colorHandle = GLES20.glGetAttribLocation(shaderProgram, "vColor")
+                    mvpMatrixHandle = GLES20.glGetUniformLocation(shaderProgram, "uMVPMatrix")
+                    Log.d(TAG, "PointCloudRenderer initialized successfully")
+                } else {
+                    Log.e(TAG, "Program linking failed: ${GLES20.glGetProgramInfoLog(shaderProgram)}")
+                    GLES20.glDeleteProgram(shaderProgram)
+                    shaderProgram = 0
+                }
+            } else {
+                Log.e(TAG, "Failed to compile shaders")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error initializing PointCloudRenderer", e)
+        }
     }
     
     fun render(points: List<Point3D>, mvpMatrix: FloatArray) {
@@ -313,8 +431,23 @@ class PointCloudRenderer {
     
     private fun loadShader(type: Int, shaderCode: String): Int {
         val shader = GLES20.glCreateShader(type)
+        if (shader == 0) {
+            Log.e(TAG, "Failed to create shader of type $type")
+            return 0
+        }
+        
         GLES20.glShaderSource(shader, shaderCode)
         GLES20.glCompileShader(shader)
+        
+        // Check compilation status
+        val compileStatus = IntArray(1)
+        GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compileStatus, 0)
+        if (compileStatus[0] == 0) {
+            Log.e(TAG, "Shader compilation failed: ${GLES20.glGetShaderInfoLog(shader)}")
+            GLES20.glDeleteShader(shader)
+            return 0
+        }
+        
         return shader
     }
 }
@@ -336,18 +469,36 @@ class TrajectoryRenderer {
     }
     
     init {
-        // Load and compile shaders (same as point cloud)
-        val vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, VERTEX_SHADER_CODE)
-        val fragmentShader = loadShader(GLES20.GL_FRAGMENT_SHADER, FRAGMENT_SHADER_CODE)
-        
-        shaderProgram = GLES20.glCreateProgram()
-        GLES20.glAttachShader(shaderProgram, vertexShader)
-        GLES20.glAttachShader(shaderProgram, fragmentShader)
-        GLES20.glLinkProgram(shaderProgram)
-        
-        positionHandle = GLES20.glGetAttribLocation(shaderProgram, "vPosition")
-        colorHandle = GLES20.glGetAttribLocation(shaderProgram, "vColor")
-        mvpMatrixHandle = GLES20.glGetUniformLocation(shaderProgram, "uMVPMatrix")
+        try {
+            // Load and compile shaders (same as point cloud)
+            val vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, VERTEX_SHADER_CODE)
+            val fragmentShader = loadShader(GLES20.GL_FRAGMENT_SHADER, FRAGMENT_SHADER_CODE)
+            
+            if (vertexShader != 0 && fragmentShader != 0) {
+                shaderProgram = GLES20.glCreateProgram()
+                GLES20.glAttachShader(shaderProgram, vertexShader)
+                GLES20.glAttachShader(shaderProgram, fragmentShader)
+                GLES20.glLinkProgram(shaderProgram)
+                
+                // Check program linking
+                val linkStatus = IntArray(1)
+                GLES20.glGetProgramiv(shaderProgram, GLES20.GL_LINK_STATUS, linkStatus, 0)
+                if (linkStatus[0] != 0) {
+                    positionHandle = GLES20.glGetAttribLocation(shaderProgram, "vPosition")
+                    colorHandle = GLES20.glGetAttribLocation(shaderProgram, "vColor")
+                    mvpMatrixHandle = GLES20.glGetUniformLocation(shaderProgram, "uMVPMatrix")
+                    Log.d(TAG, "TrajectoryRenderer initialized successfully")
+                } else {
+                    Log.e(TAG, "Program linking failed: ${GLES20.glGetProgramInfoLog(shaderProgram)}")
+                    GLES20.glDeleteProgram(shaderProgram)
+                    shaderProgram = 0
+                }
+            } else {
+                Log.e(TAG, "Failed to compile shaders")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error initializing TrajectoryRenderer", e)
+        }
     }
     
     fun render(trajectory: List<DevicePose>, mvpMatrix: FloatArray) {
@@ -404,8 +555,23 @@ class TrajectoryRenderer {
     
     private fun loadShader(type: Int, shaderCode: String): Int {
         val shader = GLES20.glCreateShader(type)
+        if (shader == 0) {
+            Log.e(TAG, "Failed to create shader of type $type")
+            return 0
+        }
+        
         GLES20.glShaderSource(shader, shaderCode)
         GLES20.glCompileShader(shader)
+        
+        // Check compilation status
+        val compileStatus = IntArray(1)
+        GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compileStatus, 0)
+        if (compileStatus[0] == 0) {
+            Log.e(TAG, "Shader compilation failed: ${GLES20.glGetShaderInfoLog(shader)}")
+            GLES20.glDeleteShader(shader)
+            return 0
+        }
+        
         return shader
     }
 }
@@ -427,18 +593,36 @@ class DeviceRenderer {
     }
     
     init {
-        // Initialize shaders (same pattern as others)
-        val vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, VERTEX_SHADER_CODE)
-        val fragmentShader = loadShader(GLES20.GL_FRAGMENT_SHADER, FRAGMENT_SHADER_CODE)
-        
-        shaderProgram = GLES20.glCreateProgram()
-        GLES20.glAttachShader(shaderProgram, vertexShader)
-        GLES20.glAttachShader(shaderProgram, fragmentShader)
-        GLES20.glLinkProgram(shaderProgram)
-        
-        positionHandle = GLES20.glGetAttribLocation(shaderProgram, "vPosition")
-        colorHandle = GLES20.glGetAttribLocation(shaderProgram, "vColor")
-        mvpMatrixHandle = GLES20.glGetUniformLocation(shaderProgram, "uMVPMatrix")
+        try {
+            // Initialize shaders (same pattern as others)
+            val vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, VERTEX_SHADER_CODE)
+            val fragmentShader = loadShader(GLES20.GL_FRAGMENT_SHADER, FRAGMENT_SHADER_CODE)
+            
+            if (vertexShader != 0 && fragmentShader != 0) {
+                shaderProgram = GLES20.glCreateProgram()
+                GLES20.glAttachShader(shaderProgram, vertexShader)
+                GLES20.glAttachShader(shaderProgram, fragmentShader)
+                GLES20.glLinkProgram(shaderProgram)
+                
+                // Check program linking
+                val linkStatus = IntArray(1)
+                GLES20.glGetProgramiv(shaderProgram, GLES20.GL_LINK_STATUS, linkStatus, 0)
+                if (linkStatus[0] != 0) {
+                    positionHandle = GLES20.glGetAttribLocation(shaderProgram, "vPosition")
+                    colorHandle = GLES20.glGetAttribLocation(shaderProgram, "vColor")
+                    mvpMatrixHandle = GLES20.glGetUniformLocation(shaderProgram, "uMVPMatrix")
+                    Log.d(TAG, "DeviceRenderer initialized successfully")
+                } else {
+                    Log.e(TAG, "Program linking failed: ${GLES20.glGetProgramInfoLog(shaderProgram)}")
+                    GLES20.glDeleteProgram(shaderProgram)
+                    shaderProgram = 0
+                }
+            } else {
+                Log.e(TAG, "Failed to compile shaders")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error initializing DeviceRenderer", e)
+        }
     }
     
     fun render(pose: DevicePose, mvpMatrix: FloatArray) {
@@ -484,6 +668,16 @@ class DeviceRenderer {
         val shader = GLES20.glCreateShader(type)
         GLES20.glShaderSource(shader, shaderCode)
         GLES20.glCompileShader(shader)
+        
+        // Check compilation
+        val compileStatus = IntArray(1)
+        GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compileStatus, 0)
+        if (compileStatus[0] == 0) {
+            Log.e(TAG, "Shader compilation failed: ${GLES20.glGetShaderInfoLog(shader)}")
+            GLES20.glDeleteShader(shader)
+            return 0
+        }
+        
         return shader
     }
 }
