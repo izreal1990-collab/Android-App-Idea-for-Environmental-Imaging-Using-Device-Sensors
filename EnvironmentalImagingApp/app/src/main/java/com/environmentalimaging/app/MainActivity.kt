@@ -471,8 +471,17 @@ class MainActivity : AppCompatActivity() {
                 MaterialAlertDialogBuilder(this@MainActivity)
                     .setTitle("Environmental Snapshots (${snapshots.size})")
                     .setItems(snapshotNames) { _, which ->
-                        val selectedSnapshot = snapshots[which]
-                        showSnapshotDetails(selectedSnapshot)
+                        val selectedSnapshotInfo = snapshots[which]
+                        // Load full snapshot for details
+                        lifecycleScope.launch {
+                            try {
+                                val fullSnapshot = storageManager.loadSnapshot(selectedSnapshotInfo.id)
+                                fullSnapshot?.let { showSnapshotDetails(it) }
+                                    ?: showError("Could not load snapshot details")
+                            } catch (e: Exception) {
+                                showError("Error loading snapshot: ${e.message}")
+                            }
+                        }
                     }
                     .setNeutralButton("Clear All") { _, _ ->
                         confirmClearAllSnapshots()
@@ -595,18 +604,17 @@ class MainActivity : AppCompatActivity() {
     
     // Settings Functions
     private fun showSensorSettings() {
+        val sensorStatus = dataAcquisition.checkSensorAvailability()
         MaterialAlertDialogBuilder(this)
             .setTitle("Sensor Configuration")
             .setMessage("Current sensors:\n" +
-                "• WiFi RTT: ${if(dataAcquisition.sensorAvailability.wifiRtt) "Available" else "Unavailable"}\n" +
-                "• Bluetooth: ${if(dataAcquisition.sensorAvailability.bluetooth) "Available" else "Unavailable"}\n" +
-                "• Acoustic: ${if(dataAcquisition.sensorAvailability.acoustic) "Available" else "Unavailable"}\n" +
-                "• IMU: ${if(dataAcquisition.sensorAvailability.imu) "Available" else "Unavailable"}")
+                "• WiFi RTT: ${if(sensorStatus.wifiRtt) "Available" else "Unavailable"}\n" +
+                "• Bluetooth: ${if(sensorStatus.bluetooth) "Available" else "Unavailable"}\n" +
+                "• Acoustic: ${if(sensorStatus.acoustic) "Available" else "Unavailable"}\n" +
+                "• IMU: ${if(sensorStatus.imu) "Available" else "Unavailable"}")
             .setPositiveButton("Refresh") { _, _ ->
-                lifecycleScope.launch {
-                    dataAcquisition.initialize()
-                    showSensorSettings()
-                }
+                // Refresh sensor availability and show updated dialog
+                showSensorSettings()
             }
             .setNegativeButton("Close", null)
             .show()
