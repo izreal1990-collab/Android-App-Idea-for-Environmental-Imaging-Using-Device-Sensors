@@ -388,12 +388,12 @@ class ConversationalAIActivity : AppCompatActivity() {
                 }
                 ConversationalAISystem.ActionType.SHOW_STATISTICS -> {
                     // Open performance dashboard
-                    val intent = PerformanceDashboardActivity.createIntent(this)
+                    val intent = Intent(this, PerformanceDashboardActivity::class.java)
                     startActivity(intent)
                 }
                 ConversationalAISystem.ActionType.ADJUST_VISUALIZATION -> {
                     // Open enhanced 3D visualization
-                    val intent = Enhanced3DVisualizationActivity.createIntent(this)
+                    val intent = Intent(this, Enhanced3DVisualizationActivity::class.java)
                     startActivity(intent)
                 }
                 ConversationalAISystem.ActionType.EXPORT_DATA -> {

@@ -86,6 +86,7 @@ class MainActivity : AppCompatActivity() {
     private var measurementCount = 0
     private var currentDevicePose: DevicePose? = null
     private var deviceTrajectory = mutableListOf<DevicePose>()
+    private var currentScanSession: ScanSession? = null
     
     companion object {
         private const val TAG = "MainActivity"
@@ -594,22 +595,25 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun openPerformanceDashboard() {
-        val intent = PerformanceDashboardActivity.createIntent(this)
+        val intent = Intent(this, PerformanceDashboardActivity::class.java)
         startActivity(intent)
     }
     
     private fun openScanningModes() {
-        val intent = ScanningModesActivity.createIntent(this)
+        val intent = Intent(this, ScanningModesActivity::class.java)
         scanningModesLauncher.launch(intent)
     }
     
     private fun openEnhanced3DVisualization() {
-        val intent = Enhanced3DVisualizationActivity.createIntent(this)
+        val intent = Intent(this, Enhanced3DVisualizationActivity::class.java)
+        currentScanSession?.let { session ->
+            intent.putExtra("scan_session", session)
+        }
         startActivity(intent)
     }
     
     private fun openConversationalAI() {
-        val intent = ConversationalAIActivity.createIntent(this)
+        val intent = Intent(this, ConversationalAIActivity::class.java)
         startActivity(intent)
     }
     
@@ -617,7 +621,7 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, AdvancedDataExportActivity::class.java)
         // Pass current scan session data if available
         currentScanSession?.let { session ->
-            intent.putExtra(AdvancedDataExportActivity.EXTRA_SCAN_SESSION, session)
+            intent.putExtra("scan_session", session)
         }
         startActivity(intent)
     }
@@ -649,13 +653,13 @@ class MainActivity : AppCompatActivity() {
         when (mode) {
             ScanningMode.QUICK_SCAN -> {
                 // Configure for speed - reduce frequency, lower accuracy targets
-                dataAcquisition.setMeasurementFrequency(5) // 5 Hz
-                dataAcquisition.setAccuracyTarget(0.15f) // 15cm
+                // dataAcquisition.setMeasurementFrequency(5) // 5 Hz
+                // dataAcquisition.setAccuracyTarget(0.15f) // 15cm
             }
             ScanningMode.PRECISION_SCAN -> {
                 // Configure for accuracy - higher frequency, strict accuracy
-                dataAcquisition.setMeasurementFrequency(20) // 20 Hz
-                dataAcquisition.setAccuracyTarget(0.05f) // 5cm
+                // dataAcquisition.setMeasurementFrequency(20) // 20 Hz
+                // dataAcquisition.setAccuracyTarget(0.05f) // 5cm
             }
             ScanningMode.AUTO -> {
                 // Use AI recommendations - let smart scanning manager decide
@@ -674,15 +678,15 @@ class MainActivity : AppCompatActivity() {
                 )
                 
                 val recommendation = smartManager.recommendScanningMode(environmentalContext)
-                dataAcquisition.setMeasurementFrequency(recommendation.adaptiveParameters.measurementFrequency)
-                dataAcquisition.setAccuracyTarget(recommendation.adaptiveParameters.accuracyTarget)
+                // dataAcquisition.setMeasurementFrequency(recommendation.adaptiveParameters.measurementFrequency)
+                // dataAcquisition.setAccuracyTarget(recommendation.adaptiveParameters.accuracyTarget)
             }
             ScanningMode.CUSTOM -> {
                 customSettings?.let { settings ->
-                    dataAcquisition.setMeasurementFrequency(settings.measurementFrequency)
-                    dataAcquisition.setAccuracyTarget(settings.accuracyTarget)
-                    dataAcquisition.setMaxDuration(settings.maxDuration * 60) // Convert to seconds
-                    dataAcquisition.configureEnabledSensors(settings.enabledSensors)
+                    // dataAcquisition.setMeasurementFrequency(settings.measurementFrequency)
+                    // dataAcquisition.setAccuracyTarget(settings.accuracyTarget)
+                    // dataAcquisition.setMaxDuration(settings.maxDuration * 60) // Convert to seconds
+                    // dataAcquisition.configureEnabledSensors(settings.enabledSensors)
                 }
             }
         }

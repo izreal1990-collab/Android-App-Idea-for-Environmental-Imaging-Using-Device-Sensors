@@ -60,6 +60,24 @@
             android:theme="@style/Theme.EnvironmentalImagingApp"
             android:parentActivityName=".MainActivity" />
         
+        <activity
+            android:name=".export.AdvancedDataExportActivity"
+            android:exported="false"
+            android:theme="@style/Theme.EnvironmentalImagingApp"
+            android:parentActivityName=".MainActivity" />
+        
+        <activity
+            android:name=".setup.SmartSetupWizardActivity"
+            android:exported="false"
+            android:theme="@style/Theme.EnvironmentalImagingApp"
+            android:parentActivityName=".MainActivity" />
+        
+        <activity
+            android:name=".analytics.SessionAnalyticsDashboardActivity"
+            android:exported="false"
+            android:theme="@style/Theme.EnvironmentalImagingApp"
+            android:parentActivityName=".MainActivity" />
+        
         <service
             android:name=".services.EnvironmentalScanService"
             android:enabled="true"

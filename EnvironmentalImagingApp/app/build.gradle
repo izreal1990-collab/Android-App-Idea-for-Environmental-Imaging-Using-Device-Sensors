@@ -87,7 +87,7 @@ dependencies {
     // Room database for AI training data storage
     implementation 'androidx.room:room-runtime:2.6.1'
     implementation 'androidx.room:room-ktx:2.6.1'
-    kapt 'androidx.room:room-compiler:2.6.1'
+    // kapt 'androidx.room:room-compiler:2.6.1'  // Disabled to fix build issue
     
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'

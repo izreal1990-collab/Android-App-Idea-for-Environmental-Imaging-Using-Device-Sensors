@@ -147,9 +147,9 @@ class ConversationalAISystem(
                     aiResponse = response.text,
                     confidence = response.confidence,
                     context = mapOf(
-                        "scanActive" to context.environmentalState?.scanningActive,
-                        "pointCount" to context.environmentalState?.pointCloudSize,
-                        "features" to context.activeFeatures
+                        "scanActive" to (context.environmentalState?.scanningActive as Any?  ?: false),
+                        "pointCount" to (context.environmentalState?.pointCloudSize as Any? ?: 0),
+                        "features" to (context.activeFeatures as Any)
                     ),
                     suggestions = response.suggestions,
                     actionPerformed = response.actions.firstOrNull()?.type?.name
@@ -257,6 +257,10 @@ class ConversationalAISystem(
                         "What measurements can I take?",
                         "How do I export this data?"
                     ))
+                }
+                else -> {
+                    // Default case
+                    suggestions.add("What can you help me with?")
                 }
             }
         }

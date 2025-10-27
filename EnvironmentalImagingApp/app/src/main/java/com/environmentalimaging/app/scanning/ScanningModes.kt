@@ -411,7 +411,7 @@ data class CustomScanSettings(
     val enabledSensors: List<SensorType>,
     val prioritizeBatteryLife: Boolean,
     val prioritizeAccuracy: Boolean
-) {
+) : java.io.Serializable {
     fun toScanningParameters(): ScanningParameters {
         val interval = 1000L / measurementFrequency.coerceIn(1, 50)
         return ScanningParameters(

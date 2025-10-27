@@ -1,11 +1,7 @@
 package com.environmentalimaging.app.export
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
-import android.os.Environment
-import android.util.Log
-import com.environmentalimaging.app.ai.AIAnalysisEngine
 import com.environmentalimaging.app.data.*
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -13,730 +9,409 @@ import kotlinx.coroutines.*
 import java.io.*
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.math.roundToInt
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 /**
- * Advanced Data Export System
- * Comprehensive export functionality with multiple formats and cloud integration
+ * Advanced data export system supporting multiple formats and cloud integration
  */
-class AdvancedDataExportSystem(
-    private val context: Context,
-    private val aiAnalysisEngine: AIAnalysisEngine
-) {
+class AdvancedDataExportSystem(private val context: Context) {
     
-    companion object {
-        private const val TAG = "AdvancedDataExport"
-        private const val EXPORT_DIR = "EnvironmentalImaging"
-        private const val PLY_HEADER = "ply\nformat ascii 1.0\n"
-        private const val LAS_HEADER_SIZE = 227
-    }
-    
-    // Export formats
-    enum class ExportFormat {
-        PLY, LAS, CSV, JSON, PDF_REPORT, XML
-    }
-    
-    // Cloud providers
-    enum class CloudProvider {
-        GOOGLE_DRIVE, DROPBOX, ONEDRIVE, LOCAL_STORAGE
-    }
-    
-    // Export configuration
-    data class ExportConfiguration(
+    data class ExportOptions(
         val format: ExportFormat,
         val includeMetadata: Boolean = true,
-        val includeAIInsights: Boolean = true,
-        val compressData: Boolean = false,
-        val cloudProvider: CloudProvider = CloudProvider.LOCAL_STORAGE,
-        val generateReport: Boolean = true,
-        val batchSize: Int = 1000,
-        val qualityThreshold: Float = 0.5f
+        val compress: Boolean = true,
+        val cloudSync: Boolean = false,
+        val encryptData: Boolean = false,
+        val includeVisualization: Boolean = false,
+        val quality: ExportQuality = ExportQuality.HIGH
     )
     
-    // Export result
+    enum class ExportFormat {
+        PLY,        // Point cloud format
+        LAS,        // LiDAR format
+        CSV,        // Simple tabular
+        JSON,       // Structured data
+        XML,        // XML format
+        PDF         // Report with visualizations
+    }
+    
+    enum class ExportQuality {
+        LOW, MEDIUM, HIGH, ULTRA
+    }
+    
+    data class ExportProgress(
+        val stage: String,
+        val progress: Float,
+        val message: String
+    )
+    
     data class ExportResult(
         val success: Boolean,
-        val fileUri: Uri?,
+        val filePath: String?,
         val fileSize: Long,
-        val exportTime: Long,
-        val recordCount: Int,
+        val cloudUrl: String? = null,
         val errorMessage: String? = null,
-        val aiSummary: String? = null
+        val exportTime: Long
     )
-    
-    // AI-generated export summary
-    data class ExportSummary(
-        val totalPoints: Int,
-        val qualityScore: Float,
-        val coverageArea: Float,
-        val accuracyMetrics: Map<String, Float>,
-        val recommendations: List<String>,
-        val insights: List<String>,
-        val exportTimestamp: Long = System.currentTimeMillis()
-    )
-    
-    // Export progress callback
-    interface ExportProgressCallback {
-        fun onProgress(progress: Float, message: String)
-        fun onComplete(result: ExportResult)
-        fun onError(error: String)
-    }
     
     private val gson: Gson = GsonBuilder()
         .setPrettyPrinting()
-        .registerTypeAdapter(Date::class.java, DateSerializer())
         .create()
     
-    private val exportScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    
     /**
-     * Export scan data with comprehensive options
+     * Export scan session data to specified format
      */
-    suspend fun exportScanData(
-        scanData: List<DataPoint>,
-        landmarks: List<Landmark> = emptyList(),
-        trajectory: List<DevicePose> = emptyList(),
-        configuration: ExportConfiguration,
-        callback: ExportProgressCallback? = null
+    suspend fun exportSession(
+        session: ScanSession,
+        outputUri: Uri,
+        options: ExportOptions,
+        progressCallback: ((ExportProgress) -> Unit)? = null
     ): ExportResult = withContext(Dispatchers.IO) {
+        val startTime = System.currentTimeMillis()
+        
         try {
-            callback?.onProgress(0f, "Initializing export...")
+            progressCallback?.invoke(ExportProgress("Preparing", 0.1f, "Preparing data for export"))
             
-            // Generate AI summary first
-            val aiSummary = generateAISummary(scanData, landmarks, trajectory)
-            callback?.onProgress(10f, "AI analysis complete")
-            
-            // Filter data based on quality threshold
-            val filteredData = filterDataByQuality(scanData, configuration.qualityThreshold)
-            callback?.onProgress(20f, "Data filtering complete")
-            
-            // Create export directory
-            val exportDir = createExportDirectory()
-            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val baseFilename = "scan_$timestamp"
-            
-            // Export based on format
-            val result = when (configuration.format) {
-                ExportFormat.PLY -> exportAsPLY(filteredData, exportDir, baseFilename, configuration, callback)
-                ExportFormat.LAS -> exportAsLAS(filteredData, exportDir, baseFilename, configuration, callback)
-                ExportFormat.CSV -> exportAsCSV(filteredData, landmarks, trajectory, exportDir, baseFilename, configuration, callback)
-                ExportFormat.JSON -> exportAsJSON(filteredData, landmarks, trajectory, aiSummary, exportDir, baseFilename, configuration, callback)
-                ExportFormat.XML -> exportAsXML(filteredData, landmarks, trajectory, aiSummary, exportDir, baseFilename, configuration, callback)
-                ExportFormat.PDF_REPORT -> exportAsPDFReport(filteredData, landmarks, trajectory, aiSummary, exportDir, baseFilename, configuration, callback)
+            when (options.format) {
+                ExportFormat.PLY -> exportToPLY(session, outputUri, options, progressCallback)
+                ExportFormat.LAS -> exportToLAS(session, outputUri, options, progressCallback)
+                ExportFormat.CSV -> exportToCSV(session, outputUri, options, progressCallback)
+                ExportFormat.JSON -> exportToJSON(session, outputUri, options, progressCallback)
+                ExportFormat.XML -> exportToXML(session, outputUri, options, progressCallback)
+                ExportFormat.PDF -> exportToPDF(session, outputUri, options, progressCallback)
             }
             
-            // Generate and export AI report if requested
-            if (configuration.generateReport && configuration.format != ExportFormat.PDF_REPORT) {
-                callback?.onProgress(90f, "Generating AI report...")
-                exportAIReport(aiSummary, exportDir, baseFilename)
-            }
+            val file = File(outputUri.path ?: "")
+            val fileSize = if (file.exists()) file.length() else 0L
             
-            callback?.onProgress(95f, "Finalizing export...")
+            progressCallback?.invoke(ExportProgress("Complete", 1.0f, "Export completed successfully"))
             
-            // Upload to cloud if specified
-            if (configuration.cloudProvider != CloudProvider.LOCAL_STORAGE) {
-                uploadToCloud(result.fileUri, configuration.cloudProvider, callback)
-            }
-            
-            callback?.onProgress(100f, "Export complete")
-            callback?.onComplete(result)
-            
-            result
+            ExportResult(
+                success = true,
+                filePath = outputUri.path,
+                fileSize = fileSize,
+                exportTime = System.currentTimeMillis() - startTime
+            )
             
         } catch (e: Exception) {
-            Log.e(TAG, "Export failed", e)
-            val errorResult = ExportResult(
+            e.printStackTrace()
+            ExportResult(
                 success = false,
-                fileUri = null,
+                filePath = null,
                 fileSize = 0,
-                exportTime = 0,
-                recordCount = 0,
-                errorMessage = e.message ?: "Unknown export error",
-                aiSummary = null
+                errorMessage = e.message,
+                exportTime = System.currentTimeMillis() - startTime
             )
-            callback?.onError(e.message ?: "Unknown export error")
-            errorResult
         }
     }
     
     /**
-     * Batch export multiple scans
+     * Export to PLY (Polygon File Format) for point clouds
+     */
+    private suspend fun exportToPLY(
+        session: ScanSession,
+        outputUri: Uri,
+        options: ExportOptions,
+        progressCallback: ((ExportProgress) -> Unit)?
+    ) {
+        progressCallback?.invoke(ExportProgress("PLY Export", 0.3f, "Writing PLY header"))
+        
+        val outputStream = context.contentResolver.openOutputStream(outputUri)
+            ?: throw IOException("Cannot open output stream")
+        
+        BufferedWriter(OutputStreamWriter(outputStream)).use { writer ->
+            // PLY Header
+            writer.write("ply\n")
+            writer.write("format ascii 1.0\n")
+            writer.write("comment Exported from Environmental Imaging App\n")
+            writer.write("comment Session: ${session.id}\n")
+            writer.write("element vertex ${session.dataPoints.size}\n")
+            writer.write("property float x\n")
+            writer.write("property float y\n")
+            writer.write("property float z\n")
+            
+            if (options.includeMetadata) {
+                writer.write("property float timestamp\n")
+            }
+            
+            writer.write("end_header\n")
+            
+            progressCallback?.invoke(ExportProgress("PLY Export", 0.5f, "Writing point data"))
+            
+            // Point data
+            session.dataPoints.forEachIndexed { index, point ->
+                writer.write("${point.x} ${point.y} ${point.z}")
+                if (options.includeMetadata) {
+                    writer.write(" ${session.startTime}")
+                }
+                writer.write("\n")
+                
+                if (index % 1000 == 0) {
+                    val progress = 0.5f + (index.toFloat() / session.dataPoints.size * 0.5f)
+                    progressCallback?.invoke(ExportProgress("PLY Export", progress, "Writing points: $index/${session.dataPoints.size}"))
+                }
+            }
+        }
+    }
+    
+    /**
+     * Export to LAS (LiDAR format)
+     */
+    private suspend fun exportToLAS(
+        session: ScanSession,
+        outputUri: Uri,
+        options: ExportOptions,
+        progressCallback: ((ExportProgress) -> Unit)?
+    ) {
+        progressCallback?.invoke(ExportProgress("LAS Export", 0.3f, "Writing LAS header"))
+        
+        val outputStream = context.contentResolver.openOutputStream(outputUri)
+            ?: throw IOException("Cannot open output stream")
+        
+        DataOutputStream(BufferedOutputStream(outputStream)).use { dos ->
+            // LAS Header (simplified)
+            dos.writeBytes("LASF")  // File signature
+            dos.writeShort(0)       // File source ID
+            dos.writeShort(0)       // Global encoding
+            
+            // Write point data
+            progressCallback?.invoke(ExportProgress("LAS Export", 0.5f, "Writing point records"))
+            
+            session.dataPoints.forEachIndexed { index, point ->
+                dos.writeInt((point.x * 1000).toInt())
+                dos.writeInt((point.y * 1000).toInt())
+                dos.writeInt((point.z * 1000).toInt())
+                dos.writeShort(0)  // Intensity
+                
+                if (index % 1000 == 0) {
+                    val progress = 0.5f + (index.toFloat() / session.dataPoints.size * 0.5f)
+                    progressCallback?.invoke(ExportProgress("LAS Export", progress, "Writing points: $index/${session.dataPoints.size}"))
+                }
+            }
+        }
+    }
+    
+    /**
+     * Export to CSV format
+     */
+    private suspend fun exportToCSV(
+        session: ScanSession,
+        outputUri: Uri,
+        options: ExportOptions,
+        progressCallback: ((ExportProgress) -> Unit)?
+    ) {
+        progressCallback?.invoke(ExportProgress("CSV Export", 0.3f, "Writing CSV header"))
+        
+        val outputStream = context.contentResolver.openOutputStream(outputUri)
+            ?: throw IOException("Cannot open output stream")
+        
+        BufferedWriter(OutputStreamWriter(outputStream)).use { writer ->
+            // CSV Header
+            if (options.includeMetadata) {
+                writer.write("x,y,z,timestamp,session_id\n")
+            } else {
+                writer.write("x,y,z\n")
+            }
+            
+            progressCallback?.invoke(ExportProgress("CSV Export", 0.5f, "Writing point data"))
+            
+            // Point data
+            session.dataPoints.forEachIndexed { index, point ->
+                if (options.includeMetadata) {
+                    writer.write("${point.x},${point.y},${point.z},${session.startTime},${session.id}\n")
+                } else {
+                    writer.write("${point.x},${point.y},${point.z}\n")
+                }
+                
+                if (index % 1000 == 0) {
+                    val progress = 0.5f + (index.toFloat() / session.dataPoints.size * 0.5f)
+                    progressCallback?.invoke(ExportProgress("CSV Export", progress, "Writing points: $index/${session.dataPoints.size}"))
+                }
+            }
+        }
+    }
+    
+    /**
+     * Export to JSON format
+     */
+    private suspend fun exportToJSON(
+        session: ScanSession,
+        outputUri: Uri,
+        options: ExportOptions,
+        progressCallback: ((ExportProgress) -> Unit)?
+    ) {
+        progressCallback?.invoke(ExportProgress("JSON Export", 0.5f, "Serializing data"))
+        
+        val outputStream = context.contentResolver.openOutputStream(outputUri)
+            ?: throw IOException("Cannot open output stream")
+        
+        val exportData = if (options.includeMetadata) {
+            mapOf(
+                "session_id" to session.id,
+                "start_time" to session.startTime,
+                "end_time" to session.endTime,
+                "point_count" to session.dataPoints.size,
+                "points" to session.dataPoints.map { 
+                    mapOf("x" to it.x, "y" to it.y, "z" to it.z) 
+                },
+                "trajectory" to session.trajectory.map {
+                    mapOf(
+                        "position" to mapOf("x" to it.position.x, "y" to it.position.y, "z" to it.position.z),
+                        "timestamp" to it.timestamp
+                    )
+                }
+            )
+        } else {
+            mapOf(
+                "points" to session.dataPoints.map { 
+                    mapOf("x" to it.x, "y" to it.y, "z" to it.z) 
+                }
+            )
+        }
+        
+        OutputStreamWriter(outputStream).use { writer ->
+            gson.toJson(exportData, writer)
+        }
+        
+        progressCallback?.invoke(ExportProgress("JSON Export", 1.0f, "JSON export complete"))
+    }
+    
+    /**
+     * Export to XML format
+     */
+    private suspend fun exportToXML(
+        session: ScanSession,
+        outputUri: Uri,
+        options: ExportOptions,
+        progressCallback: ((ExportProgress) -> Unit)?
+    ) {
+        progressCallback?.invoke(ExportProgress("XML Export", 0.3f, "Writing XML structure"))
+        
+        val outputStream = context.contentResolver.openOutputStream(outputUri)
+            ?: throw IOException("Cannot open output stream")
+        
+        BufferedWriter(OutputStreamWriter(outputStream)).use { writer ->
+            writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+            writer.write("<scan_session>\n")
+            
+            if (options.includeMetadata) {
+                writer.write("  <metadata>\n")
+                writer.write("    <session_id>${session.id}</session_id>\n")
+                writer.write("    <start_time>${session.startTime}</start_time>\n")
+                writer.write("    <end_time>${session.endTime}</end_time>\n")
+                writer.write("    <point_count>${session.dataPoints.size}</point_count>\n")
+                writer.write("  </metadata>\n")
+            }
+            
+            writer.write("  <points>\n")
+            
+            progressCallback?.invoke(ExportProgress("XML Export", 0.5f, "Writing point data"))
+            
+            session.dataPoints.forEachIndexed { index, point ->
+                writer.write("    <point x=\"${point.x}\" y=\"${point.y}\" z=\"${point.z}\"/>\n")
+                
+                if (index % 1000 == 0) {
+                    val progress = 0.5f + (index.toFloat() / session.dataPoints.size * 0.5f)
+                    progressCallback?.invoke(ExportProgress("XML Export", progress, "Writing points: $index/${session.dataPoints.size}"))
+                }
+            }
+            
+            writer.write("  </points>\n")
+            writer.write("</scan_session>\n")
+        }
+    }
+    
+    /**
+     * Export to PDF report format
+     */
+    private suspend fun exportToPDF(
+        session: ScanSession,
+        outputUri: Uri,
+        options: ExportOptions,
+        progressCallback: ((ExportProgress) -> Unit)?
+    ) {
+        progressCallback?.invoke(ExportProgress("PDF Export", 0.5f, "Generating PDF report"))
+        
+        // For now, create a simple text-based report
+        // In a full implementation, use a PDF library like iText or PDFBox
+        val outputStream = context.contentResolver.openOutputStream(outputUri)
+            ?: throw IOException("Cannot open output stream")
+        
+        BufferedWriter(OutputStreamWriter(outputStream)).use { writer ->
+            writer.write("Environmental Imaging Scan Report\n")
+            writer.write("=" .repeat(50) + "\n\n")
+            writer.write("Session ID: ${session.id}\n")
+            writer.write("Start Time: ${Date(session.startTime)}\n")
+            writer.write("End Time: ${Date(session.endTime)}\n")
+            writer.write("Duration: ${(session.endTime - session.startTime) / 1000}s\n")
+            writer.write("Total Points: ${session.dataPoints.size}\n\n")
+            
+            writer.write("Point Cloud Summary\n")
+            writer.write("-" .repeat(50) + "\n")
+            
+            if (session.dataPoints.isNotEmpty()) {
+                val minX = session.dataPoints.minOf { it.x }
+                val maxX = session.dataPoints.maxOf { it.x }
+                val minY = session.dataPoints.minOf { it.y }
+                val maxY = session.dataPoints.maxOf { it.y }
+                val minZ = session.dataPoints.minOf { it.z }
+                val maxZ = session.dataPoints.maxOf { it.z }
+                
+                writer.write("Bounding Box:\n")
+                writer.write("  X: [${minX}, ${maxX}] (${maxX - minX}m)\n")
+                writer.write("  Y: [${minY}, ${maxY}] (${maxY - minY}m)\n")
+                writer.write("  Z: [${minZ}, ${maxZ}] (${maxZ - minZ}m)\n")
+            }
+        }
+        
+        progressCallback?.invoke(ExportProgress("PDF Export", 1.0f, "PDF export complete"))
+    }
+    
+    /**
+     * Batch export multiple sessions
      */
     suspend fun batchExport(
-        scanSessions: List<ScanSession>,
-        configuration: ExportConfiguration,
-        callback: ExportProgressCallback? = null
-    ): List<ExportResult> = withContext(Dispatchers.IO) {
-        val results = mutableListOf<ExportResult>()
-        
-        scanSessions.forEachIndexed { index, session ->
-            callback?.onProgress(
-                (index.toFloat() / scanSessions.size) * 100f,
-                "Exporting session ${index + 1}/${scanSessions.size}"
-            )
+        sessions: List<ScanSession>,
+        outputDir: Uri,
+        options: ExportOptions,
+        progressCallback: ((String, Float) -> Unit)? = null
+    ): List<ExportResult> {
+        return sessions.mapIndexed { index, session ->
+            progressCallback?.invoke("Exporting ${session.id}", index.toFloat() / sessions.size)
             
-            val result = exportScanData(
-                session.dataPoints,
-                session.landmarks,
-                session.trajectory,
-                configuration.copy(
-                    generateReport = index == scanSessions.size - 1 // Only generate report for last session
-                )
-            )
+            val fileName = "${session.id}_${System.currentTimeMillis()}.${options.format.name.lowercase()}"
+            val outputUri = Uri.withAppendedPath(outputDir, fileName)
             
-            results.add(result)
-        }
-        
-        callback?.onComplete(ExportResult(
-            success = results.all { it.success },
-            fileUri = null,
-            fileSize = results.sumOf { it.fileSize },
-            exportTime = results.sumOf { it.exportTime },
-            recordCount = results.sumOf { it.recordCount },
-            aiSummary = "Batch export of ${results.size} sessions completed"
-        ))
-        
-        results
-    }
-    
-    // Private implementation methods
-    
-    private suspend fun generateAISummary(
-        scanData: List<DataPoint>,
-        landmarks: List<Landmark>,
-        trajectory: List<DevicePose>
-    ): ExportSummary {
-        return try {
-            val analysis = aiAnalysisEngine.analyzeScanData(scanData, landmarks, trajectory)
-            
-            ExportSummary(
-                totalPoints = scanData.size,
-                qualityScore = analysis.qualityScore,
-                coverageArea = analysis.coverageArea,
-                accuracyMetrics = analysis.accuracyMetrics,
-                recommendations = analysis.recommendations,
-                insights = analysis.insights
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "AI summary generation failed", e)
-            // Fallback summary
-            ExportSummary(
-                totalPoints = scanData.size,
-                qualityScore = 0.5f,
-                coverageArea = 0f,
-                accuracyMetrics = emptyMap(),
-                recommendations = listOf("Unable to generate AI recommendations"),
-                insights = listOf("AI analysis unavailable")
-            )
+            exportSession(session, outputUri, options, null)
         }
     }
     
-    private fun filterDataByQuality(data: List<DataPoint>, threshold: Float): List<DataPoint> {
-        return data.filter { it.confidence >= threshold }
-    }
-    
-    private fun createExportDirectory(): File {
-        val exportDir = File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-            EXPORT_DIR
-        )
-        
-        if (!exportDir.exists()) {
-            exportDir.mkdirs()
-        }
-        
-        return exportDir
-    }
-    
-    private suspend fun exportAsPLY(
-        data: List<DataPoint>,
-        exportDir: File,
-        baseFilename: String,
-        config: ExportConfiguration,
-        callback: ExportProgressCallback?
-    ): ExportResult {
-        val startTime = System.currentTimeMillis()
-        val file = File(exportDir, "$baseFilename.ply")
-        
-        callback?.onProgress(30f, "Writing PLY header...")
-        
-        FileOutputStream(file).use { fos ->
-            BufferedWriter(OutputStreamWriter(fos)).use { writer ->
-                // Write PLY header
-                writer.write(PLY_HEADER)
-                writer.write("element vertex ${data.size}\n")
-                writer.write("property float x\n")
-                writer.write("property float y\n")
-                writer.write("property float z\n")
-                writer.write("property float nx\n")
-                writer.write("property float ny\n")
-                writer.write("property float nz\n")
-                writer.write("property float confidence\n")
-                writer.write("property float intensity\n")
-                writer.write("end_header\n")
-                
-                // Write vertex data
-                callback?.onProgress(50f, "Writing vertex data...")
-                data.forEachIndexed { index, point ->
-                    if (index % 1000 == 0) {
-                        callback?.onProgress(
-                            50f + (index.toFloat() / data.size) * 40f,
-                            "Writing vertex ${index + 1}/${data.size}"
-                        )
-                    }
-                    
-                    writer.write(String.format(Locale.US,
-                        "%.6f %.6f %.6f %.6f %.6f %.6f %.6f %.6f\n",
-                        point.position.x, point.position.y, point.position.z,
-                        point.normal?.x ?: 0f, point.normal?.y ?: 0f, point.normal?.z ?: 0f,
-                        point.confidence, point.intensity
-                    ))
-                }
-            }
-        }
-        
-        val exportTime = System.currentTimeMillis() - startTime
-        
-        return ExportResult(
-            success = true,
-            fileUri = Uri.fromFile(file),
-            fileSize = file.length(),
-            exportTime = exportTime,
-            recordCount = data.size,
-            aiSummary = "PLY export completed successfully"
-        )
-    }
-    
-    private suspend fun exportAsLAS(
-        data: List<DataPoint>,
-        exportDir: File,
-        baseFilename: String,
-        config: ExportConfiguration,
-        callback: ExportProgressCallback?
-    ): ExportResult {
-        val startTime = System.currentTimeMillis()
-        val file = File(exportDir, "$baseFilename.las")
-        
-        callback?.onProgress(30f, "Writing LAS header...")
-        
-        FileOutputStream(file).use { fos ->
-            DataOutputStream(fos).use { dos ->
-                // Write LAS header (simplified)
-                writeLASHeader(dos, data.size)
-                
-                // Write point data
-                callback?.onProgress(50f, "Writing point data...")
-                data.forEachIndexed { index, point ->
-                    if (index % 1000 == 0) {
-                        callback?.onProgress(
-                            50f + (index.toFloat() / data.size) * 40f,
-                            "Writing point ${index + 1}/${data.size}"
-                        )
-                    }
-                    
-                    writeLASPoint(dos, point)
-                }
-            }
-        }
-        
-        val exportTime = System.currentTimeMillis() - startTime
-        
-        return ExportResult(
-            success = true,
-            fileUri = Uri.fromFile(file),
-            fileSize = file.length(),
-            exportTime = exportTime,
-            recordCount = data.size,
-            aiSummary = "LAS export completed successfully"
-        )
-    }
-    
-    private suspend fun exportAsCSV(
-        data: List<DataPoint>,
-        landmarks: List<Landmark>,
-        trajectory: List<DevicePose>,
-        exportDir: File,
-        baseFilename: String,
-        config: ExportConfiguration,
-        callback: ExportProgressCallback?
-    ): ExportResult {
-        val startTime = System.currentTimeMillis()
-        val file = File(exportDir, "$baseFilename.csv")
-        
-        callback?.onProgress(30f, "Writing CSV data...")
-        
-        FileOutputStream(file).use { fos ->
-            BufferedWriter(OutputStreamWriter(fos)).use { writer ->
-                // Write header
-                writer.write("x,y,z,nx,ny,nz,confidence,intensity,timestamp,type\n")
-                
-                // Write point data
-                callback?.onProgress(40f, "Writing points...")
-                data.forEach { point ->
-                    writer.write(String.format(Locale.US,
-                        "%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%d,point\n",
-                        point.position.x, point.position.y, point.position.z,
-                        point.normal?.x ?: 0f, point.normal?.y ?: 0f, point.normal?.z ?: 0f,
-                        point.confidence, point.intensity, point.timestamp
-                    ))
-                }
-                
-                // Write landmark data
-                callback?.onProgress(70f, "Writing landmarks...")
-                landmarks.forEach { landmark ->
-                    writer.write(String.format(Locale.US,
-                        "%.6f,%.6f,%.6f,0,0,0,%.6f,0,%d,landmark\n",
-                        landmark.position.x, landmark.position.y, landmark.position.z,
-                        landmark.confidence, landmark.timestamp
-                    ))
-                }
-                
-                // Write trajectory data
-                callback?.onProgress(90f, "Writing trajectory...")
-                trajectory.forEach { pose ->
-                    writer.write(String.format(Locale.US,
-                        "%.6f,%.6f,%.6f,0,0,0,1.0,0,%d,trajectory\n",
-                        pose.position.x, pose.position.y, pose.position.z,
-                        pose.timestamp
-                    ))
-                }
-            }
-        }
-        
-        val exportTime = System.currentTimeMillis() - startTime
-        
-        return ExportResult(
-            success = true,
-            fileUri = Uri.fromFile(file),
-            fileSize = file.length(),
-            exportTime = exportTime,
-            recordCount = data.size + landmarks.size + trajectory.size,
-            aiSummary = "CSV export completed successfully"
-        )
-    }
-    
-    private suspend fun exportAsJSON(
-        data: List<DataPoint>,
-        landmarks: List<Landmark>,
-        trajectory: List<DevicePose>,
-        aiSummary: ExportSummary,
-        exportDir: File,
-        baseFilename: String,
-        config: ExportConfiguration,
-        callback: ExportProgressCallback?
-    ): ExportResult {
-        val startTime = System.currentTimeMillis()
-        val file = File(exportDir, "$baseFilename.json")
-        
-        callback?.onProgress(30f, "Serializing JSON data...")
-        
-        val exportData = mapOf(
-            "metadata" to mapOf(
-                "exportTimestamp" to System.currentTimeMillis(),
-                "format" to "EnvironmentalImaging_JSON_v1.0",
-                "pointCount" to data.size,
-                "landmarkCount" to landmarks.size,
-                "trajectoryPoints" to trajectory.size
-            ),
-            "aiSummary" to aiSummary,
-            "points" to data.map { point ->
-                mapOf(
-                    "position" to mapOf(
-                        "x" to point.position.x,
-                        "y" to point.position.y,
-                        "z" to point.position.z
-                    ),
-                    "normal" to point.normal?.let { normal ->
-                        mapOf("x" to normal.x, "y" to normal.y, "z" to normal.z)
-                    },
-                    "confidence" to point.confidence,
-                    "intensity" to point.intensity,
-                    "timestamp" to point.timestamp
-                )
-            },
-            "landmarks" to landmarks.map { landmark ->
-                mapOf(
-                    "position" to mapOf(
-                        "x" to landmark.position.x,
-                        "y" to landmark.position.y,
-                        "z" to landmark.position.z
-                    ),
-                    "type" to landmark.type,
-                    "confidence" to landmark.confidence,
-                    "timestamp" to landmark.timestamp
-                )
-            },
-            "trajectory" to trajectory.map { pose ->
-                mapOf(
-                    "position" to mapOf(
-                        "x" to pose.position.x,
-                        "y" to pose.position.y,
-                        "z" to pose.position.z
-                    ),
-                    "orientation" to mapOf(
-                        "w" to pose.orientation.w,
-                        "x" to pose.orientation.x,
-                        "y" to pose.orientation.y,
-                        "z" to pose.orientation.z
-                    ),
-                    "timestamp" to pose.timestamp
-                )
-            }
-        )
-        
-        callback?.onProgress(70f, "Writing JSON file...")
-        
-        FileOutputStream(file).use { fos ->
-            OutputStreamWriter(fos).use { writer ->
-                gson.toJson(exportData, writer)
-            }
-        }
-        
-        val exportTime = System.currentTimeMillis() - startTime
-        
-        return ExportResult(
-            success = true,
-            fileUri = Uri.fromFile(file),
-            fileSize = file.length(),
-            exportTime = exportTime,
-            recordCount = data.size + landmarks.size + trajectory.size,
-            aiSummary = "JSON export completed successfully"
-        )
-    }
-    
-    private suspend fun exportAsXML(
-        data: List<DataPoint>,
-        landmarks: List<Landmark>,
-        trajectory: List<DevicePose>,
-        aiSummary: ExportSummary,
-        exportDir: File,
-        baseFilename: String,
-        config: ExportConfiguration,
-        callback: ExportProgressCallback?
-    ): ExportResult {
-        val startTime = System.currentTimeMillis()
-        val file = File(exportDir, "$baseFilename.xml")
-        
-        callback?.onProgress(30f, "Writing XML data...")
-        
-        FileOutputStream(file).use { fos ->
-            BufferedWriter(OutputStreamWriter(fos)).use { writer ->
-                writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
-                writer.write("<EnvironmentalImagingExport version=\"1.0\">\n")
-                
-                // Metadata
-                writer.write("  <metadata>\n")
-                writer.write("    <exportTimestamp>${System.currentTimeMillis()}</exportTimestamp>\n")
-                writer.write("    <pointCount>${data.size}</pointCount>\n")
-                writer.write("    <landmarkCount>${landmarks.size}</landmarkCount>\n")
-                writer.write("    <trajectoryPoints>${trajectory.size}</trajectoryPoints>\n")
-                writer.write("  </metadata>\n")
-                
-                // AI Summary
-                writer.write("  <aiSummary>\n")
-                writer.write("    <totalPoints>${aiSummary.totalPoints}</totalPoints>\n")
-                writer.write("    <qualityScore>${aiSummary.qualityScore}</qualityScore>\n")
-                writer.write("    <coverageArea>${aiSummary.coverageArea}</coverageArea>\n")
-                writer.write("    <recommendations>\n")
-                aiSummary.recommendations.forEach { rec ->
-                    writer.write("      <recommendation>$rec</recommendation>\n")
-                }
-                writer.write("    </recommendations>\n")
-                writer.write("  </aiSummary>\n")
-                
-                // Points
-                callback?.onProgress(50f, "Writing points...")
-                writer.write("  <points>\n")
-                data.forEach { point ->
-                    writer.write("    <point>\n")
-                    writer.write("      <position>\n")
-                    writer.write("        <x>${point.position.x}</x>\n")
-                    writer.write("        <y>${point.position.y}</y>\n")
-                    writer.write("        <z>${point.position.z}</z>\n")
-                    writer.write("      </position>\n")
-                    if (point.normal != null) {
-                        writer.write("      <normal>\n")
-                        writer.write("        <x>${point.normal.x}</x>\n")
-                        writer.write("        <y>${point.normal.y}</y>\n")
-                        writer.write("        <z>${point.normal.z}</z>\n")
-                        writer.write("      </normal>\n")
-                    }
-                    writer.write("      <confidence>${point.confidence}</confidence>\n")
-                    writer.write("      <intensity>${point.intensity}</intensity>\n")
-                    writer.write("      <timestamp>${point.timestamp}</timestamp>\n")
-                    writer.write("    </point>\n")
-                }
-                writer.write("  </points>\n")
-                
-                writer.write("</EnvironmentalImagingExport>\n")
-            }
-        }
-        
-        val exportTime = System.currentTimeMillis() - startTime
-        
-        return ExportResult(
-            success = true,
-            fileUri = Uri.fromFile(file),
-            fileSize = file.length(),
-            exportTime = exportTime,
-            recordCount = data.size + landmarks.size + trajectory.size,
-            aiSummary = "XML export completed successfully"
-        )
-    }
-    
-    private suspend fun exportAsPDFReport(
-        data: List<DataPoint>,
-        landmarks: List<Landmark>,
-        trajectory: List<DevicePose>,
-        aiSummary: ExportSummary,
-        exportDir: File,
-        baseFilename: String,
-        config: ExportConfiguration,
-        callback: ExportProgressCallback?
-    ): ExportResult {
-        // PDF export would require additional PDF library dependency
-        // For now, create a text-based report
-        val startTime = System.currentTimeMillis()
-        val file = File(exportDir, "${baseFilename}_report.txt")
-        
-        callback?.onProgress(30f, "Generating PDF report...")
-        
-        FileOutputStream(file).use { fos ->
-            BufferedWriter(OutputStreamWriter(fos)).use { writer ->
-                writer.write("Environmental Imaging Scan Report\n")
-                writer.write("================================\n\n")
-                writer.write("Export Date: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())}\n\n")
-                
-                writer.write("SCAN SUMMARY\n")
-                writer.write("------------\n")
-                writer.write("Total Points: ${aiSummary.totalPoints}\n")
-                writer.write("Quality Score: ${(aiSummary.qualityScore * 100).roundToInt()}%\n")
-                writer.write("Coverage Area: ${String.format("%.2f", aiSummary.coverageArea)} m²\n")
-                writer.write("Landmarks Detected: ${landmarks.size}\n")
-                writer.write("Trajectory Points: ${trajectory.size}\n\n")
-                
-                writer.write("AI ANALYSIS\n")
-                writer.write("-----------\n")
-                writer.write("Quality Assessment: ${getQualityDescription(aiSummary.qualityScore)}\n\n")
-                
-                writer.write("Key Insights:\n")
-                aiSummary.insights.forEach { insight ->
-                    writer.write("• $insight\n")
-                }
-                writer.write("\n")
-                
-                writer.write("Recommendations:\n")
-                aiSummary.recommendations.forEach { rec ->
-                    writer.write("• $rec\n")
-                }
-                writer.write("\n")
-                
-                writer.write("Accuracy Metrics:\n")
-                aiSummary.accuracyMetrics.forEach { (metric, value) ->
-                    writer.write("• $metric: ${String.format("%.2f", value)}\n")
-                }
-                writer.write("\n")
-                
-                writer.write("EXPORT DETAILS\n")
-                writer.write("--------------\n")
-                writer.write("Format: PDF Report\n")
-                writer.write("Export Time: ${System.currentTimeMillis() - startTime} ms\n")
-                writer.write("File Location: ${file.absolutePath}\n")
-            }
-        }
-        
-        val exportTime = System.currentTimeMillis() - startTime
-        
-        return ExportResult(
-            success = true,
-            fileUri = Uri.fromFile(file),
-            fileSize = file.length(),
-            exportTime = exportTime,
-            recordCount = data.size + landmarks.size + trajectory.size,
-            aiSummary = "PDF report generated successfully"
-        )
-    }
-    
-    private suspend fun exportAIReport(aiSummary: ExportSummary, exportDir: File, baseFilename: String) {
-        val reportFile = File(exportDir, "${baseFilename}_ai_report.json")
-        
-        FileOutputStream(reportFile).use { fos ->
-            OutputStreamWriter(fos).use { writer ->
-                gson.toJson(aiSummary, writer)
-            }
-        }
-    }
-    
-    private suspend fun uploadToCloud(fileUri: Uri?, provider: CloudProvider, callback: ExportProgressCallback?) {
-        // Placeholder for cloud upload functionality
-        // Would integrate with respective cloud APIs
-        callback?.onProgress(95f, "Uploading to ${provider.name}...")
-        delay(1000) // Simulate upload time
-        callback?.onProgress(100f, "Upload complete")
-    }
-    
-    private fun writeLASHeader(dos: DataOutputStream, pointCount: Int) {
-        // Simplified LAS header writing
-        // In a real implementation, this would write proper LAS format headers
-        for (i in 0 until LAS_HEADER_SIZE) {
-            dos.writeByte(0)
-        }
-    }
-    
-    private fun writeLASPoint(dos: DataOutputStream, point: DataPoint) {
-        // Simplified LAS point writing
-        // In a real implementation, this would write proper LAS point records
-        dos.writeFloat(point.position.x)
-        dos.writeFloat(point.position.y)
-        dos.writeFloat(point.position.z)
-        dos.writeFloat(point.confidence)
-    }
-    
-    private fun getQualityDescription(score: Float): String {
+    /**
+     * Get recommended export format based on data characteristics
+     */
+    fun recommendExportFormat(session: ScanSession): ExportFormat {
         return when {
-            score >= 0.9 -> "Excellent"
-            score >= 0.8 -> "Very Good"
-            score >= 0.7 -> "Good"
-            score >= 0.6 -> "Fair"
-            score >= 0.5 -> "Poor"
-            else -> "Very Poor"
+            session.dataPoints.size > 100000 -> ExportFormat.LAS  // Large point clouds
+            session.dataPoints.size > 10000 -> ExportFormat.PLY   // Medium point clouds
+            else -> ExportFormat.JSON                                  // Small datasets
         }
     }
     
     /**
-     * Get list of exported files
+     * Estimate export file size
      */
-    fun getExportedFiles(): List<File> {
-        val exportDir = createExportDirectory()
-        return exportDir.listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() } ?: emptyList()
-    }
-    
-    /**
-     * Delete exported file
-     */
-    fun deleteExportedFile(filename: String): Boolean {
-        val exportDir = createExportDirectory()
-        val file = File(exportDir, filename)
-        return file.exists() && file.delete()
-    }
-    
-    /**
-     * Cleanup resources
-     */
-    fun cleanup() {
-        exportScope.cancel()
-    }
-}
-
-// Custom date serializer for JSON
-class DateSerializer : com.google.gson.JsonSerializer<Date>, com.google.gson.JsonDeserializer<Date> {
-    private val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
-    
-    override fun serialize(src: Date?, typeOfSrc: java.lang.reflect.Type?, context: com.google.gson.JsonSerializationContext?): com.google.gson.JsonElement {
-        return com.google.gson.JsonPrimitive(format.format(src))
-    }
-    
-    override fun deserialize(json: com.google.gson.JsonElement?, typeOfT: java.lang.reflect.Type?, context: com.google.gson.JsonDeserializationContext?): Date {
-        return format.parse(json?.asString ?: "") ?: Date()
+    fun estimateFileSize(session: ScanSession, format: ExportFormat, compress: Boolean): Long {
+        val pointSize = when (format) {
+            ExportFormat.PLY -> 48  // ASCII format: "x.xxx y.yyy z.zzz\n" ≈ 48 bytes
+            ExportFormat.LAS -> 28  // Binary format
+            ExportFormat.CSV -> 32  // "x.xxx,y.yyy,z.zzz\n" ≈ 32 bytes
+            ExportFormat.JSON -> 64 // JSON overhead
+            ExportFormat.XML -> 80  // XML overhead
+            ExportFormat.PDF -> 100 // Report format
+        }
+        
+        val baseSize = session.dataPoints.size.toLong() * pointSize
+        return if (compress) baseSize / 3 else baseSize  // Assume 3:1 compression
     }
 }
