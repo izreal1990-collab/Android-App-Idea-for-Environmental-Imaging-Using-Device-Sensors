@@ -43,6 +43,10 @@ class AcousticRangingSensor(private val context: Context) {
         private const val FFT_SIZE = 4096
         private const val MIN_PEAK_HEIGHT = 0.1f
         private const val MAX_DETECTION_DISTANCE = 10.0f // meters
+        
+        // Multipath rejection parameters
+        private const val MIN_PEAK_SEPARATION_SAMPLES = 100 // Minimum samples between valid peaks
+        private const val SECONDARY_PEAK_RATIO = 0.3f // Reject secondary peaks below this ratio of primary
     }
     
     /**
@@ -208,12 +212,15 @@ class AcousticRangingSensor(private val context: Context) {
             val correlation = crossCorrelate(recordedData, chirp)
             
             // Find peaks in correlation (potential echoes)
-            val peaks = findPeaks(correlation, MIN_PEAK_HEIGHT)
+            val rawPeaks = findPeaks(correlation, MIN_PEAK_HEIGHT)
+            
+            // Apply multipath rejection - filter out secondary reflections
+            val filteredPeaks = rejectMultipathPeaks(rawPeaks)
             
             val measurements = mutableListOf<RangingMeasurement>()
             val currentTime = System.currentTimeMillis()
             
-            for ((peakIndex, amplitude) in peaks) {
+            for ((peakIndex, amplitude) in filteredPeaks) {
                 // Convert sample index to time delay
                 val timeDelay = peakIndex.toDouble() / SAMPLE_RATE
                 
@@ -234,7 +241,7 @@ class AcousticRangingSensor(private val context: Context) {
                     )
                     measurements.add(measurement)
                     
-                    Log.d(TAG, "Echo detected: distance=${distance}m, accuracy=${accuracy}m")
+                    Log.d(TAG, "Echo detected: distance=${distance}m, accuracy=${accuracy}m, amplitude=$amplitude")
                 }
             }
             
@@ -244,6 +251,39 @@ class AcousticRangingSensor(private val context: Context) {
             Log.e(TAG, "Error processing echoes", e)
             return emptyList()
         }
+    }
+    
+    /**
+     * Reject multipath peaks - keep only direct reflections
+     */
+    private fun rejectMultipathPeaks(peaks: List<Pair<Int, Float>>): List<Pair<Int, Float>> {
+        if (peaks.isEmpty()) return emptyList()
+        
+        val filtered = mutableListOf<Pair<Int, Float>>()
+        val primaryPeak = peaks.first() // Strongest peak (sorted by amplitude)
+        filtered.add(primaryPeak)
+        
+        // Add secondary peaks only if they meet criteria
+        for (i in 1 until peaks.size) {
+            val (peakIndex, amplitude) = peaks[i]
+            
+            // Check if peak is sufficiently separated from previous peaks
+            val isSeparated = filtered.all { (existingIndex, _) ->
+                abs(peakIndex - existingIndex) >= MIN_PEAK_SEPARATION_SAMPLES
+            }
+            
+            // Check if amplitude is significant (not just a multipath ghost)
+            val isSignificant = amplitude >= primaryPeak.second * SECONDARY_PEAK_RATIO
+            
+            if (isSeparated && isSignificant) {
+                filtered.add(peaks[i])
+                Log.d(TAG, "Accepted secondary peak at index $peakIndex (amplitude=$amplitude)")
+            } else {
+                Log.d(TAG, "Rejected multipath peak at index $peakIndex (amplitude=$amplitude)")
+            }
+        }
+        
+        return filtered
     }
     
     /**

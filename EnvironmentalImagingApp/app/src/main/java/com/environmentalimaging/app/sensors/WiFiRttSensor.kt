@@ -14,6 +14,8 @@ import com.environmentalimaging.app.data.RangingMeasurement
 import com.environmentalimaging.app.data.RangingType
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
+import java.util.LinkedList
+import kotlin.math.abs
 
 /**
  * WiFi RTT (Round-Trip Time) sensor implementation for distance measurement
@@ -35,7 +37,14 @@ class WiFiRttSensor(private val context: Context) {
         private const val TAG = "WiFiRttSensor"
         private const val MAX_RANGING_REQUESTS = 10 // Limit concurrent requests
         private const val MIN_ACCURACY_METERS = 10.0f // Filter out inaccurate measurements
+        
+        // Multipath mitigation parameters
+        private const val MEDIAN_FILTER_WINDOW = 5 // Number of samples for temporal filtering
+        private const val MULTIPATH_VARIANCE_THRESHOLD = 2.0f // Standard deviation threshold in meters
     }
+    
+    // Temporal filtering - store recent measurements per AP
+    private val measurementHistory = mutableMapOf<String, LinkedList<Float>>()
     
     /**
      * Check if WiFi RTT is available on this device
@@ -120,21 +129,30 @@ class WiFiRttSensor(private val context: Context) {
         
         for (result in results) {
             if (result.status == RangingResult.STATUS_SUCCESS) {
-                val distance = result.distanceMm / 1000.0f // Convert mm to meters
+                val rawDistance = result.distanceMm / 1000.0f // Convert mm to meters
                 val accuracy = result.distanceStdDevMm / 1000.0f // Convert mm to meters
+                val apId = result.macAddress.toString()
                 
-                // Filter out inaccurate measurements
-                if (accuracy <= MIN_ACCURACY_METERS) {
+                // Apply temporal filtering to reduce multipath interference
+                val filteredDistance = applyMedianFilter(apId, rawDistance)
+                
+                // Calculate variance to detect multipath
+                val variance = calculateVariance(apId)
+                
+                // Filter out inaccurate measurements and suspected multipath
+                if (accuracy <= MIN_ACCURACY_METERS && variance <= MULTIPATH_VARIANCE_THRESHOLD) {
                     val measurement = RangingMeasurement(
-                        sourceId = result.macAddress.toString(),
-                        distance = distance,
+                        sourceId = apId,
+                        distance = filteredDistance,
                         accuracy = accuracy,
                         timestamp = currentTime,
                         measurementType = RangingType.WIFI_RTT
                     )
                     measurements.add(measurement)
                     
-                    Log.d(TAG, "RTT measurement: ${result.macAddress} -> ${distance}m ±${accuracy}m")
+                    Log.d(TAG, "RTT measurement: $apId -> ${filteredDistance}m ±${accuracy}m (variance: $variance)")
+                } else {
+                    Log.w(TAG, "Rejected RTT measurement for $apId: accuracy=$accuracy, variance=$variance")
                 }
             } else {
                 Log.w(TAG, "RTT measurement failed for ${result.macAddress}: status ${result.status}")
@@ -142,6 +160,43 @@ class WiFiRttSensor(private val context: Context) {
         }
         
         return measurements
+    }
+    
+    /**
+     * Apply median filter to reduce multipath interference
+     */
+    private fun applyMedianFilter(apId: String, newDistance: Float): Float {
+        // Get or create history for this AP
+        val history = measurementHistory.getOrPut(apId) { LinkedList() }
+        
+        // Add new measurement
+        history.add(newDistance)
+        
+        // Keep only recent measurements
+        while (history.size > MEDIAN_FILTER_WINDOW) {
+            history.removeFirst()
+        }
+        
+        // Return median if we have enough samples, otherwise raw distance
+        return if (history.size >= 3) {
+            val sorted = history.sorted()
+            sorted[sorted.size / 2]
+        } else {
+            newDistance
+        }
+    }
+    
+    /**
+     * Calculate variance of recent measurements to detect multipath
+     */
+    private fun calculateVariance(apId: String): Float {
+        val history = measurementHistory[apId] ?: return 0f
+        
+        if (history.size < 2) return 0f
+        
+        val mean = history.average().toFloat()
+        val sumSquaredDiff = history.sumOf { (it - mean).toDouble() * (it - mean).toDouble() }
+        return kotlin.math.sqrt(sumSquaredDiff / history.size).toFloat()
     }
     
     /**

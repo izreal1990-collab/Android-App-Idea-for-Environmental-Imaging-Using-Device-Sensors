@@ -38,6 +38,9 @@ class ExtendedKalmanFilter {
         private const val WIFI_RTT_NOISE = 1.0
         private const val BLUETOOTH_NOISE = 3.0
         private const val ACOUSTIC_NOISE = 0.05
+        
+        // Outlier detection parameters
+        private const val MAHALANOBIS_THRESHOLD = 9.0 // Chi-squared with 1 DOF at 99.7% (3-sigma)
     }
     
     // State vector [x, y, z, vx, vy, vz, qw, qx, qy, qz]
@@ -156,6 +159,15 @@ class ExtendedKalmanFilter {
                 MatrixUtils.createRealMatrix(1, 1).also { it.setEntry(0, 0, measurementNoise) }
             )
             
+            // Mahalanobis distance-based outlier detection
+            val mahalanobisDistance = (innovation * innovation) / S.getEntry(0, 0)
+            
+            if (mahalanobisDistance > MAHALANOBIS_THRESHOLD) {
+                Log.w(TAG, "Outlier detected: Mahalanobis distance=$mahalanobisDistance for ${rangingMeasurement.measurementType} (innovation=$innovation)")
+                // Reject this measurement - it's statistically inconsistent with current estimate
+                return
+            }
+            
             // Kalman gain
             val K = covariance.multiply(H.transpose()).multiply(MatrixUtils.inverse(S))
             
@@ -171,7 +183,7 @@ class ExtendedKalmanFilter {
             // Normalize quaternion after update
             normalizeQuaternionInState()
             
-            Log.d(TAG, "Updated state with ${rangingMeasurement.measurementType} measurement: innovation=$innovation")
+            Log.d(TAG, "Updated state with ${rangingMeasurement.measurementType} measurement: innovation=$innovation, mahalanobis=$mahalanobisDistance")
             
         } catch (e: Exception) {
             Log.e(TAG, "Error in update step", e)

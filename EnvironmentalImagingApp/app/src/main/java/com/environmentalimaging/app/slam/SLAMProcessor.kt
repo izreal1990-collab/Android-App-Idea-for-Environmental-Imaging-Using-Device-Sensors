@@ -2,6 +2,7 @@ package com.environmentalimaging.app.slam
 
 import android.util.Log
 import com.environmentalimaging.app.data.*
+import com.environmentalimaging.app.sensors.MeasurementValidator
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlin.math.*
@@ -14,6 +15,7 @@ class SLAMProcessor {
     
     private val kalmanFilter = ExtendedKalmanFilter()
     private val loopClosureDetector = LoopClosureDetector()
+    private val measurementValidator = MeasurementValidator()
     
     // SLAM state
     private var lastIMUTimestamp = 0L
@@ -29,6 +31,7 @@ class SLAMProcessor {
     // Processing statistics
     private var measurementCount = 0
     private var loopClosureCount = 0
+    private var rejectedMeasurementCount = 0
     
     companion object {
         private const val TAG = "SLAMProcessor"
@@ -75,7 +78,7 @@ class SLAMProcessor {
     fun stopProcessing() {
         Log.d(TAG, "Stopping SLAM processing")
         isProcessing = false
-        Log.d(TAG, "SLAM statistics - Measurements: $measurementCount, Loop closures: $loopClosureCount")
+        Log.d(TAG, "SLAM statistics - Measurements: $measurementCount, Loop closures: $loopClosureCount, Rejected: $rejectedMeasurementCount")
     }
     
     /**
@@ -113,7 +116,27 @@ class SLAMProcessor {
      */
     private suspend fun processRangingMeasurements(measurements: List<RangingMeasurement>) {
         try {
-            for (measurement in measurements) {
+            // Pre-filter measurements through validation layer
+            val validMeasurements = measurements.filter { measurement ->
+                val validationResult = measurementValidator.validate(measurement)
+                if (!validationResult.isValid) {
+                    rejectedMeasurementCount++
+                    Log.d(TAG, "Rejected measurement from ${measurement.sourceId}: ${validationResult.errors}")
+                    false
+                } else {
+                    true
+                }
+            }
+            
+            if (validMeasurements.isEmpty()) {
+                Log.d(TAG, "No valid measurements to process")
+                return
+            }
+            
+            // Apply adaptive sensor weighting based on accuracy
+            val weightedMeasurements = prioritizeMeasurements(validMeasurements)
+            
+            for (measurement in weightedMeasurements) {
                 // Check for loop closure before processing measurement
                 val loopClosure = loopClosureDetector.detectLoopClosure(measurement, kalmanFilter.getCurrentPose())
                 
@@ -123,11 +146,11 @@ class SLAMProcessor {
                     loopClosureCount++
                 }
                 
-                // Update Kalman filter with measurement
+                // Update Kalman filter with measurement (now has outlier rejection)
                 kalmanFilter.update(measurement)
                 measurementCount++
                 
-                Log.d(TAG, "Processed ${measurement.measurementType} measurement: distance=${measurement.distance}m")
+                Log.d(TAG, "Processed ${measurement.measurementType} measurement: distance=${measurement.distance}m (accuracy=${measurement.accuracy}m)")
             }
             
             // Emit updated pose and state
@@ -137,6 +160,24 @@ class SLAMProcessor {
             
         } catch (e: Exception) {
             Log.e(TAG, "Error processing ranging measurements", e)
+        }
+    }
+    
+    /**
+     * Prioritize measurements based on accuracy and sensor type
+     * Process most accurate first: Acoustic > WiFi RTT > Bluetooth RSSI
+     */
+    private fun prioritizeMeasurements(measurements: List<RangingMeasurement>): List<RangingMeasurement> {
+        return measurements.sortedBy { measurement ->
+            // Assign priority score (lower = higher priority)
+            val typePriority = when (measurement.measurementType) {
+                RangingType.ACOUSTIC_FMCW -> 1.0
+                RangingType.WIFI_RTT -> 2.0
+                RangingType.BLUETOOTH_CHANNEL_SOUNDING -> 3.0
+            }
+            
+            // Combine type priority with actual accuracy
+            typePriority * measurement.accuracy
         }
     }
     
@@ -212,6 +253,7 @@ class SLAMProcessor {
         return ProcessingStatistics(
             measurementCount = measurementCount,
             loopClosureCount = loopClosureCount,
+            rejectedMeasurementCount = rejectedMeasurementCount,
             isProcessing = isProcessing,
             landmarkCount = kalmanFilter.getLandmarks().size
         )
@@ -226,8 +268,10 @@ class SLAMProcessor {
         // and clear all landmarks and pose history
         measurementCount = 0
         loopClosureCount = 0
+        rejectedMeasurementCount = 0
         lastIMUTimestamp = 0L
         loopClosureDetector.reset()
+        measurementValidator.reset()
     }
     
     /**
@@ -250,13 +294,14 @@ class SLAMProcessor {
  */
 class LoopClosureDetector {
     
-    private val visitedLocations = mutableListOf<Pair<DevicePose, List<String>>>()
+    private val visitedLocations = mutableListOf<VisitedLocation>()
     
     companion object {
         private const val TAG = "LoopClosureDetector"
         private const val LOCATION_THRESHOLD = 2.0f // meters
-        private const val LANDMARK_SIMILARITY_THRESHOLD = 0.5f
-        private const val MIN_CONFIDENCE = 0.7f
+        private const val LANDMARK_SIMILARITY_THRESHOLD = 0.6f // Increased for robustness
+        private const val MIN_CONFIDENCE = 0.75f // Increased threshold
+        private const val MIN_LANDMARK_MATCHES = 2 // Require multiple landmark matches
     }
     
     /**
@@ -265,21 +310,40 @@ class LoopClosureDetector {
     fun detectLoopClosure(measurement: RangingMeasurement, currentPose: DevicePose): LoopClosure? {
         try {
             // Check if we've been near this location before
-            for ((historicPose, historicLandmarks) in visitedLocations) {
-                val distance = calculateDistance(currentPose.position, historicPose.position)
+            for (visitedLocation in visitedLocations) {
+                val distance = calculateDistance(currentPose.position, visitedLocation.pose.position)
                 
                 if (distance < LOCATION_THRESHOLD) {
-                    // Check if current measurement matches historic landmarks
-                    if (historicLandmarks.contains(measurement.sourceId)) {
-                        val confidence = calculateLoopClosureConfidence(distance, measurement.accuracy)
+                    // Check landmark similarity with geometric consistency
+                    val matchingLandmarks = visitedLocation.landmarks.count { it == measurement.sourceId }
+                    
+                    if (matchingLandmarks > 0) {
+                        // Check for geometric consistency
+                        val isGeometricallyConsistent = checkGeometricConsistency(
+                            currentPose, 
+                            visitedLocation.pose, 
+                            measurement
+                        )
                         
-                        if (confidence > MIN_CONFIDENCE) {
-                            return LoopClosure(
-                                landmarkId = measurement.sourceId,
-                                historicPose = historicPose,
-                                currentPose = currentPose,
-                                confidence = confidence
+                        if (isGeometricallyConsistent) {
+                            val confidence = calculateLoopClosureConfidence(
+                                distance, 
+                                measurement.accuracy,
+                                matchingLandmarks,
+                                visitedLocation.landmarks.size
                             )
+                            
+                            if (confidence > MIN_CONFIDENCE) {
+                                Log.d(TAG, "Strong loop closure: $matchingLandmarks matching landmarks, confidence=$confidence")
+                                return LoopClosure(
+                                    landmarkId = measurement.sourceId,
+                                    historicPose = visitedLocation.pose,
+                                    currentPose = currentPose,
+                                    confidence = confidence
+                                )
+                            }
+                        } else {
+                            Log.d(TAG, "Geometric consistency check failed - rejecting loop closure")
                         }
                     }
                 }
@@ -297,37 +361,66 @@ class LoopClosureDetector {
     }
     
     /**
+     * Check geometric consistency between poses and measurement
+     */
+    private fun checkGeometricConsistency(
+        currentPose: DevicePose,
+        historicPose: DevicePose,
+        measurement: RangingMeasurement
+    ): Boolean {
+        // Calculate expected distance change based on pose displacement
+        val poseDistance = calculateDistance(currentPose.position, historicPose.position)
+        
+        // If poses are very close, measurements should be similar
+        // Allow for sensor noise (use 3-sigma threshold)
+        val expectedVariance = 3.0f * measurement.accuracy
+        
+        return poseDistance <= expectedVariance
+    }
+    
+    /**
      * Record visited location with associated landmarks
      */
     private fun recordVisitedLocation(pose: DevicePose, landmarkId: String) {
         // Find existing location or create new one
-        val existingIndex = visitedLocations.indexOfFirst { (historicPose, _) ->
-            calculateDistance(pose.position, historicPose.position) < LOCATION_THRESHOLD
+        val existingIndex = visitedLocations.indexOfFirst { visitedLocation ->
+            calculateDistance(pose.position, visitedLocation.pose.position) < LOCATION_THRESHOLD
         }
         
         if (existingIndex >= 0) {
             // Add landmark to existing location
-            val (existingPose, existingLandmarks) = visitedLocations[existingIndex]
-            if (!existingLandmarks.contains(landmarkId)) {
-                val updatedLandmarks = existingLandmarks.toMutableList()
+            val existing = visitedLocations[existingIndex]
+            if (!existing.landmarks.contains(landmarkId)) {
+                val updatedLandmarks = existing.landmarks.toMutableList()
                 updatedLandmarks.add(landmarkId)
-                visitedLocations[existingIndex] = Pair(existingPose, updatedLandmarks)
+                visitedLocations[existingIndex] = VisitedLocation(existing.pose, updatedLandmarks)
             }
         } else {
             // Create new location record
-            visitedLocations.add(Pair(pose, listOf(landmarkId)))
+            visitedLocations.add(VisitedLocation(pose, mutableListOf(landmarkId)))
         }
     }
     
     /**
-     * Calculate loop closure confidence
+     * Calculate loop closure confidence with landmark similarity
      */
-    private fun calculateLoopClosureConfidence(distance: Float, measurementAccuracy: Float): Float {
-        // Confidence decreases with distance and measurement uncertainty
+    private fun calculateLoopClosureConfidence(
+        distance: Float, 
+        measurementAccuracy: Float,
+        matchingLandmarks: Int,
+        totalLandmarks: Int
+    ): Float {
+        // Distance-based confidence
         val distanceFactor = (LOCATION_THRESHOLD - distance) / LOCATION_THRESHOLD
+        
+        // Accuracy-based confidence
         val accuracyFactor = 1.0f / (1.0f + measurementAccuracy)
         
-        return (distanceFactor * accuracyFactor).coerceIn(0f, 1f)
+        // Landmark similarity confidence
+        val similarityFactor = matchingLandmarks.toFloat() / totalLandmarks.toFloat()
+        
+        // Combined confidence (weighted average)
+        return ((distanceFactor * 0.3f) + (accuracyFactor * 0.3f) + (similarityFactor * 0.4f)).coerceIn(0f, 1f)
     }
     
     /**
@@ -350,6 +443,14 @@ class LoopClosureDetector {
 }
 
 /**
+ * Data class for visited location with landmarks
+ */
+data class VisitedLocation(
+    val pose: DevicePose,
+    val landmarks: MutableList<String>
+)
+
+/**
  * Data class for loop closure information
  */
 data class LoopClosure(
@@ -365,6 +466,7 @@ data class LoopClosure(
 data class ProcessingStatistics(
     val measurementCount: Int,
     val loopClosureCount: Int,
+    val rejectedMeasurementCount: Int,
     val isProcessing: Boolean,
     val landmarkCount: Int
 )
