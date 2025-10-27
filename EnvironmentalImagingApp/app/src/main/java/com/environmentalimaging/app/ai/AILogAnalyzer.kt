@@ -660,13 +660,7 @@ enum class LogInsightType {
     ANOMALY_DETECTED
 }
 
-data class SystemIssue(
-    val type: String,
-    val description: String,
-    val severity: SeverityLevel,
-    val timestamp: Long,
-    val recommendations: List<String>
-)
+// SystemIssue is defined in AIDataModels.kt
 
 data class LogPattern(
     val description: String,

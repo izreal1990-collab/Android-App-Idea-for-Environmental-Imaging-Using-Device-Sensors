@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <!-- Accuracy Setting -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Target Accuracy"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        android:layout_marginBottom="8dp" />
+
+    <com.google.android.material.slider.Slider
+        android:id="@+id/accuracySlider"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:valueFrom="0.02"
+        android:valueTo="0.20"
+        android:value="0.08"
+        android:stepSize="0.01"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:id="@+id/accuracyLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="8 cm accuracy"
+        android:textSize="14sp"
+        android:layout_marginBottom="24dp" />
+
+    <!-- Measurement Frequency -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Measurement Frequency"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        android:layout_marginBottom="8dp" />
+
+    <com.google.android.material.slider.Slider
+        android:id="@+id/frequencySlider"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:valueFrom="1"
+        android:valueTo="30"
+        android:value="10"
+        android:stepSize="1"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:id="@+id/frequencyLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="10 Hz"
+        android:textSize="14sp"
+        android:layout_marginBottom="24dp" />
+
+    <!-- Max Duration -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Maximum Scan Duration"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        android:layout_marginBottom="8dp" />
+
+    <com.google.android.material.slider.Slider
+        android:id="@+id/durationSlider"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:valueFrom="1"
+        android:valueTo="20"
+        android:value="7"
+        android:stepSize="1"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:id="@+id/durationLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="7 minutes"
+        android:textSize="14sp"
+        android:layout_marginBottom="24dp" />
+
+    <!-- Priority Settings -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Priority Settings"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        android:layout_marginBottom="16dp" />
+
+    <CheckBox
+        android:id="@+id/prioritizeAccuracyCheckbox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Prioritize accuracy over speed"
+        android:checked="true"
+        android:layout_marginBottom="8dp" />
+
+    <CheckBox
+        android:id="@+id/prioritizeBatteryCheckbox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Prioritize battery life"
+        android:checked="false"
+        android:layout_marginBottom="24dp" />
+
+    <!-- Sensor Selection -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Enabled Sensors"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        android:layout_marginBottom="16dp" />
+
+    <CheckBox
+        android:id="@+id/uwbSensorCheckbox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Ultra-Wideband (UWB)"
+        android:checked="true"
+        android:layout_marginBottom="8dp" />
+
+    <CheckBox
+        android:id="@+id/wifiRttSensorCheckbox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="WiFi RTT"
+        android:checked="true"
+        android:layout_marginBottom="8dp" />
+
+    <CheckBox
+        android:id="@+id/imuSensorCheckbox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="IMU (Accelerometer/Gyroscope)"
+        android:checked="true"
+        android:layout_marginBottom="8dp" />
+
+    <CheckBox
+        android:id="@+id/bluetoothSensorCheckbox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Bluetooth"
+        android:checked="false"
+        android:layout_marginBottom="8dp" />
+
+    <CheckBox
+        android:id="@+id/cameraSensorCheckbox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Camera (Visual-inertial)"
+        android:checked="false" />
+
+</LinearLayout>

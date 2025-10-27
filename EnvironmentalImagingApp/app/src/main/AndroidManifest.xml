@@ -54,6 +54,12 @@
             </intent-filter>
         </activity>
         
+        <activity
+            android:name=".PerformanceDashboardActivity"
+            android:exported="false"
+            android:theme="@style/Theme.EnvironmentalImagingApp"
+            android:parentActivityName=".MainActivity" />
+        
         <service
             android:name=".services.EnvironmentalScanService"
             android:enabled="true"

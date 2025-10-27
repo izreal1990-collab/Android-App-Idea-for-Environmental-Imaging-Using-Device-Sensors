@@ -334,3 +334,28 @@ data class AIPerformanceReport(
     val resourceUsage: PerformanceMetrics,
     val timestamp: Long
 )
+
+// Unified SystemIssue data class for both log analysis and system health monitoring
+data class SystemIssue(
+    val type: String, // Can be IssueType enum name or custom string
+    val description: String,
+    val severity: SeverityLevel,
+    val timestamp: Long,
+    val recommendations: List<String>,
+    val value: Float? = null, // Optional numeric value for system metrics
+    val metadata: Map<String, Any> = emptyMap() // Additional context data
+)
+
+// Additional enums for system monitoring
+enum class IssueType {
+    HIGH_CPU_USAGE, HIGH_MEMORY_USAGE, LOW_BATTERY, HIGH_TEMPERATURE,
+    MEMORY_EXHAUSTION, CPU_OVERLOAD, BATTERY_DEPLETION, THERMAL_THROTTLING
+}
+
+enum class Severity {
+    LOW, MEDIUM, HIGH, CRITICAL
+}
+
+enum class SuggestionPriority {
+    LOW, MEDIUM, HIGH
+}

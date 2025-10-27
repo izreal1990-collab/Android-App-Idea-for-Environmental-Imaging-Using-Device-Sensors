@@ -3,7 +3,7 @@ package com.environmentalimaging.app.ai
 import android.content.Context
 import android.util.Log
 import com.environmentalimaging.app.data.*
-import com.environmentalimaging.app.slam.SLAMState
+import com.environmentalimaging.app.data.SlamState
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import org.tensorflow.lite.Interpreter
@@ -35,7 +35,7 @@ class AIAnalysisEngine(private val context: Context) {
     // Data buffers for pattern analysis
     private val sensorDataBuffer = mutableListOf<RangingMeasurement>()
     private val imuDataBuffer = mutableListOf<IMUData>()
-    private val slamStateBuffer = mutableListOf<SLAMState>()
+    private val slamStateBuffer = mutableListOf<SlamState>()
     
     // Pattern analysis parameters
     private val maxBufferSize = 1000
@@ -118,7 +118,7 @@ class AIAnalysisEngine(private val context: Context) {
     /**
      * Analyze SLAM state for mapping quality
      */
-    fun analyzeSLAMState(slamState: SLAMState) {
+    fun analyzeSLAMState(slamState: SlamState) {
         scope.launch {
             try {
                 slamStateBuffer.add(slamState)
@@ -330,7 +330,7 @@ class AIAnalysisEngine(private val context: Context) {
         }
     }
     
-    private fun analyzeMappingQuality(slamState: SLAMState): EnvironmentalAnalysis {
+    private fun analyzeMappingQuality(slamState: SlamState): EnvironmentalAnalysis {
         return try {
             val recentStates = slamStateBuffer.takeLast(10)
             val positionStability = calculatePositionStability(recentStates)
@@ -527,7 +527,7 @@ class AIAnalysisEngine(private val context: Context) {
         return width * height * depth
     }
     
-    private fun calculatePositionStability(states: List<SLAMState>): Float {
+    private fun calculatePositionStability(states: List<SlamState>): Float {
         if (states.size < 2) return 1.0f
         
         val positions = states.map { it.devicePose.position }
@@ -557,6 +557,9 @@ class AIAnalysisEngine(private val context: Context) {
             }
             MappingQuality.EXCELLENT -> {
                 recommendations.add("Excellent mapping quality achieved!")
+            }
+            MappingQuality.UNKNOWN -> {
+                recommendations.add("Unable to determine mapping quality - check sensor functionality")
             }
         }
         
@@ -604,3 +607,7 @@ class AIAnalysisEngine(private val context: Context) {
         return null
     }
 }
+
+// Extension functions for formatting numbers
+private fun Float.format(decimals: Int): String = "%.${decimals}f".format(this)
+private fun Double.format(decimals: Int): String = "%.${decimals}f".format(this)

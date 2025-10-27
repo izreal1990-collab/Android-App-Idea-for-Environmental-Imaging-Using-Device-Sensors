@@ -17,8 +17,11 @@ import com.environmentalimaging.app.slam.SLAMProcessor
 import com.environmentalimaging.app.storage.SnapshotStorageManager
 import com.environmentalimaging.app.storage.BackgroundStorageProcessor
 import com.environmentalimaging.app.visualization.*
+import com.environmentalimaging.app.ai.*
+import com.environmentalimaging.app.scanning.*
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import kotlinx.coroutines.*
@@ -28,6 +31,7 @@ import java.util.*
 /**
  * Main Activity for Environmental Imaging App
  * Orchestrates data acquisition, SLAM processing, 3D visualization, and snapshot management
+ * with comprehensive AI-powered analysis and guidance
  */
 class MainActivity : AppCompatActivity() {
     
@@ -38,6 +42,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var storageManager: SnapshotStorageManager
     private lateinit var backgroundStorageProcessor: BackgroundStorageProcessor
     
+    // AI System Components
+    private lateinit var aiAnalysisEngine: AIAnalysisEngine
+    private lateinit var aiSystemHealthMonitor: AISystemHealthMonitor
+    private lateinit var environmentalAIAssistant: EnvironmentalAIAssistant
+    private lateinit var mlEnhancedSLAM: MLEnhancedSLAM
+    
     // UI components
     private lateinit var visualizationView: EnvironmentalVisualizationView
     private lateinit var scanButton: MaterialButton
@@ -45,6 +55,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var resetButton: MaterialButton
     private lateinit var settingsButton: MaterialButton
     private lateinit var snapshotsButton: MaterialButton
+    private lateinit var performanceButton: MaterialButton
+    private lateinit var scanModesButton: MaterialButton
+    private lateinit var enhanced3DButton: MaterialButton
+    private lateinit var conversationalAIButton: MaterialButton
     
     // Status indicators
     private lateinit var statusText: android.widget.TextView
@@ -109,6 +123,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
+    private val scanningModesLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            result.data?.let { data ->
+                val selectedMode = data.getSerializableExtra(ScanningModesActivity.EXTRA_SELECTED_MODE) as? ScanningMode
+                val customSettings = data.getSerializableExtra(ScanningModesActivity.EXTRA_CUSTOM_SETTINGS) as? CustomScanSettings
+                
+                selectedMode?.let { mode ->
+                    handleScanningModeSelection(mode, customSettings)
+                }
+            }
+        }
+    }
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -127,6 +156,10 @@ class MainActivity : AppCompatActivity() {
         resetButton = findViewById(R.id.resetButton)
         settingsButton = findViewById(R.id.settingsButton)
         snapshotsButton = findViewById(R.id.snapshotsButton)
+        performanceButton = findViewById(R.id.performanceButton)
+        scanModesButton = findViewById(R.id.scanModesButton)
+        enhanced3DButton = findViewById(R.id.enhanced3DButton)
+        conversationalAIButton = findViewById(R.id.conversationalAIButton)
         
         statusText = findViewById(R.id.statusText)
         landmarkCountText = findViewById(R.id.landmarkCountText)
@@ -145,6 +178,10 @@ class MainActivity : AppCompatActivity() {
         resetButton.setOnClickListener { resetScan() }
         settingsButton.setOnClickListener { openSettings() }
         snapshotsButton.setOnClickListener { openSnapshotGallery() }
+        performanceButton.setOnClickListener { openPerformanceDashboard() }
+        scanModesButton.setOnClickListener { openScanningModes() }
+        enhanced3DButton.setOnClickListener { openEnhanced3DVisualization() }
+        conversationalAIButton.setOnClickListener { openConversationalAI() }
         
         // Set initial state
         updateUI()
@@ -175,6 +212,13 @@ class MainActivity : AppCompatActivity() {
                 storageManager = SnapshotStorageManager(this@MainActivity)
                 backgroundStorageProcessor = BackgroundStorageProcessor(this@MainActivity, storageManager)
                 
+                // Initialize AI System components
+                showLoading("Initializing AI system...")
+                aiAnalysisEngine = AIAnalysisEngine(this@MainActivity)
+                aiSystemHealthMonitor = AISystemHealthMonitor(this@MainActivity)
+                environmentalAIAssistant = EnvironmentalAIAssistant(this@MainActivity)
+                mlEnhancedSLAM = MLEnhancedSLAM(this@MainActivity)
+                
                 // Check sensor availability
                 val sensorStatus = dataAcquisition.checkSensorAvailability()
                 updateSensorStatusIcons(sensorStatus)
@@ -184,13 +228,16 @@ class MainActivity : AppCompatActivity() {
                     return@launch
                 }
                 
-                // Set up data flows
+                // Set up data flows (including AI integration)
                 setupDataFlows()
                 
                 hideLoading()
-                updateStatus("Ready to scan")
+                updateStatus("Ready to scan - AI system active")
                 
-                Log.d(TAG, "Application initialized successfully")
+                // Show initial AI recommendations
+                showAIWelcomeMessage()
+                
+                Log.d(TAG, "Application initialized successfully with AI system")
                 
             } catch (e: Exception) {
                 Log.e(TAG, "Error initializing application", e)
@@ -217,6 +264,16 @@ class MainActivity : AppCompatActivity() {
                 visualizationView.updateDevicePose(slamState.devicePose)
                 visualizationView.updateTrajectory(deviceTrajectory)
                 
+                // AI Analysis: Analyze SLAM state for insights
+                launch {
+                    try {
+                        aiAnalysisEngine.analyzeSLAMState(slamState)
+                        // AI analysis runs in background and generates insights
+                    } catch (e: Exception) {
+                        Log.w(TAG, "AI SLAM analysis failed", e)
+                    }
+                }
+                
                 runOnUiThread { updateUI() }
             }
         }
@@ -225,14 +282,49 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             reconstructionModule.pointCloud.collect { pointCloud ->
                 visualizationView.updatePointCloud(pointCloud)
+                
+                // AI Analysis: Analyze point cloud for environmental insights
+                launch {
+                    try {
+                        val insights = aiAnalysisEngine.getEnvironmentalInsights(pointCloud)
+                        showAIMessage("Environmental analysis: ${insights.detectedObjects.size} objects detected")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "AI point cloud analysis failed", e)
+                    }
+                }
             }
         }
         
-        // Monitor ranging measurements for statistics
+        // Monitor ranging measurements
         lifecycleScope.launch {
             dataAcquisition.rangingMeasurements.collect { measurements ->
                 measurementCount += measurements.size
+                
+                // AI Analysis: Analyze individual measurements
+                launch {
+                    try {
+                        measurements.forEach { measurement ->
+                            aiAnalysisEngine.analyzeSensorData(measurement)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "AI sensor analysis failed", e)
+                    }
+                }
+                
                 runOnUiThread { updateUI() }
+            }
+        }
+        
+        // System health monitoring
+        lifecycleScope.launch {
+            while (true) {
+                delay(10000) // Check every 10 seconds
+                try {
+                    val systemHealth = aiSystemHealthMonitor.getCurrentSystemHealth()
+                    processSystemHealthUpdate(systemHealth)
+                } catch (e: Exception) {
+                    Log.w(TAG, "System health monitoring failed", e)
+                }
             }
         }
     }
@@ -496,6 +588,94 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
+    private fun openPerformanceDashboard() {
+        val intent = PerformanceDashboardActivity.createIntent(this)
+        startActivity(intent)
+    }
+    
+    private fun openScanningModes() {
+        val intent = ScanningModesActivity.createIntent(this)
+        scanningModesLauncher.launch(intent)
+    }
+    
+    private fun openEnhanced3DVisualization() {
+        val intent = Enhanced3DVisualizationActivity.createIntent(this)
+        startActivity(intent)
+    }
+    
+    private fun openConversationalAI() {
+        val intent = ConversationalAIActivity.createIntent(this)
+        startActivity(intent)
+    }
+    
+    private fun handleScanningModeSelection(mode: ScanningMode, customSettings: CustomScanSettings?) {
+        lifecycleScope.launch {
+            try {
+                val message = when (mode) {
+                    ScanningMode.QUICK_SCAN -> "Quick Scan mode selected - optimized for speed"
+                    ScanningMode.PRECISION_SCAN -> "Precision Scan mode selected - optimized for accuracy"
+                    ScanningMode.AUTO -> "Auto mode selected - AI will adapt parameters"
+                    ScanningMode.CUSTOM -> "Custom mode selected with personalized settings"
+                }
+                
+                Snackbar.make(findViewById(android.R.id.content), message, Snackbar.LENGTH_LONG).show()
+                
+                // Apply the selected scanning mode configuration
+                applyScanningModeConfiguration(mode, customSettings)
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error handling scanning mode selection", e)
+                Toast.makeText(this@MainActivity, "Failed to apply scanning mode", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    
+    private suspend fun applyScanningModeConfiguration(mode: ScanningMode, customSettings: CustomScanSettings?) {
+        // Configure data acquisition based on selected mode
+        when (mode) {
+            ScanningMode.QUICK_SCAN -> {
+                // Configure for speed - reduce frequency, lower accuracy targets
+                dataAcquisition.setMeasurementFrequency(5) // 5 Hz
+                dataAcquisition.setAccuracyTarget(0.15f) // 15cm
+            }
+            ScanningMode.PRECISION_SCAN -> {
+                // Configure for accuracy - higher frequency, strict accuracy
+                dataAcquisition.setMeasurementFrequency(20) // 20 Hz
+                dataAcquisition.setAccuracyTarget(0.05f) // 5cm
+            }
+            ScanningMode.AUTO -> {
+                // Use AI recommendations - let smart scanning manager decide
+                val aiAnalysisEngine = AIAnalysisEngine(this)
+                val aiAssistant = EnvironmentalAIAssistant(this)
+                val smartManager = SmartScanningManager(this, aiAnalysisEngine, aiAssistant)
+                
+                // Create environmental context for AI decision
+                val environmentalContext = EnvironmentalContext(
+                    estimatedArea = 25f,
+                    complexity = EnvironmentalComplexity.MEDIUM,
+                    lightingConditions = LightingConditions.GOOD,
+                    requiresHighAccuracy = false,
+                    timeConstraints = TimeConstraints.MODERATE,
+                    primaryUseCase = ScanUseCase.DETAILED_MAPPING
+                )
+                
+                val recommendation = smartManager.recommendScanningMode(environmentalContext)
+                dataAcquisition.setMeasurementFrequency(recommendation.adaptiveParameters.measurementFrequency)
+                dataAcquisition.setAccuracyTarget(recommendation.adaptiveParameters.accuracyTarget)
+            }
+            ScanningMode.CUSTOM -> {
+                customSettings?.let { settings ->
+                    dataAcquisition.setMeasurementFrequency(settings.measurementFrequency)
+                    dataAcquisition.setAccuracyTarget(settings.accuracyTarget)
+                    dataAcquisition.setMaxDuration(settings.maxDuration * 60) // Convert to seconds
+                    dataAcquisition.configureEnabledSensors(settings.enabledSensors)
+                }
+            }
+        }
+        
+        Log.d(TAG, "Applied scanning mode configuration: $mode")
+    }
+    
     private fun updateUI() {
         scanButton.text = if (isScanning) "Stop Scan" else "Start Scan"
         scanButton.icon = ContextCompat.getDrawable(
@@ -718,5 +898,58 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+    
+    // ================================
+    // AI SYSTEM INTEGRATION METHODS
+    // ================================
+    
+    private fun showAIWelcomeMessage() {
+        showAIMessage("AI Assistant initialized. Ready to provide intelligent environmental analysis.")
+    }
+    
+    private fun processSystemHealthUpdate(systemHealth: SystemHealthSnapshot) {
+        // Simplified system health processing - just update status color
+        runOnUiThread {
+            when (systemHealth.healthScore) {
+                in 0.8f..1.0f -> {
+                    statusText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_dark))
+                }
+                in 0.5f..0.8f -> {
+                    statusText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
+                    showAIMessage("System performance is degraded.")
+                }
+                else -> {
+                    statusText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
+                    showAIMessage("Critical system issues detected.")
+                }
+            }
+        }
+    }
+    
+    private fun showAIMessage(message: String) {
+        runOnUiThread {
+            // Show AI message in a subtle way (could be expanded to a dedicated AI panel)
+            Toast.makeText(this, "AI: $message", Toast.LENGTH_LONG).show()
+        }
+    }
+    
+
+    
+    // Enhanced scanning with simple guidance
+    override fun onBackPressed() {
+        if (isScanning) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Stop Scanning?")
+                .setMessage("Scanning in progress with $landmarkCount landmarks and $measurementCount measurements.\n\nDo you want to stop scanning now?")
+                .setPositiveButton("Stop") { _, _ ->
+                    stopScanning()
+                    super.onBackPressed()
+                }
+                .setNegativeButton("Continue Scanning", null)
+                .show()
+        } else {
+            super.onBackPressed()
+        }
     }
 }

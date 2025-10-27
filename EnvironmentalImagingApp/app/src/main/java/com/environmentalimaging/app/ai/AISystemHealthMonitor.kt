@@ -12,6 +12,12 @@ import java.io.File
 import java.io.RandomAccessFile
 import kotlin.math.*
 
+// Import shared data classes from AIDataModels
+import com.environmentalimaging.app.ai.SeverityLevel
+import com.environmentalimaging.app.ai.IssueType
+import com.environmentalimaging.app.ai.SystemIssue
+import com.environmentalimaging.app.ai.SuggestionPriority
+
 /**
  * AI-Powered System Health Monitor
  * Continuously monitors system performance, predicts issues, and provides optimization recommendations
@@ -107,8 +113,8 @@ class AISystemHealthMonitor(private val context: Context) {
                             type = IssueType.MEMORY_EXHAUSTION,
                             description = "Memory usage trending upward - potential OutOfMemory in ${memoryTrend.timeToThreshold} minutes",
                             probability = memoryTrend.confidence,
-                            timeToOccurrence = memoryTrend.timeToThreshold * 60 * 1000L,
-                            severity = Severity.HIGH,
+                            timeToOccurrence = (memoryTrend.timeToThreshold * 60 * 1000).toLong(),
+                            severity = SeverityLevel.ERROR,
                             preventionActions = listOf(
                                 "Clear old sensor data",
                                 "Reduce 3D visualization quality",
@@ -126,8 +132,8 @@ class AISystemHealthMonitor(private val context: Context) {
                             type = IssueType.CPU_OVERLOAD,
                             description = "CPU usage increasing - potential performance degradation in ${cpuTrend.timeToThreshold} minutes",
                             probability = cpuTrend.confidence,
-                            timeToOccurrence = cpuTrend.timeToThreshold * 60 * 1000L,
-                            severity = Severity.MEDIUM,
+                            timeToOccurrence = (cpuTrend.timeToThreshold * 60 * 1000).toLong(),
+                            severity = SeverityLevel.WARNING,
                             preventionActions = listOf(
                                 "Reduce sensor sampling rates",
                                 "Lower frame rate for 3D visualization",
@@ -145,8 +151,8 @@ class AISystemHealthMonitor(private val context: Context) {
                             type = IssueType.BATTERY_DEPLETION,
                             description = "Battery will reach critical level in ${batteryTrend.timeToThreshold} minutes",
                             probability = batteryTrend.confidence,
-                            timeToOccurrence = batteryTrend.timeToThreshold * 60 * 1000L,
-                            severity = Severity.MEDIUM,
+                            timeToOccurrence = (batteryTrend.timeToThreshold * 60 * 1000).toLong(),
+                            severity = SeverityLevel.WARNING,
                             preventionActions = listOf(
                                 "Enable battery saver mode",
                                 "Reduce screen brightness",
@@ -164,8 +170,8 @@ class AISystemHealthMonitor(private val context: Context) {
                             type = IssueType.THERMAL_THROTTLING,
                             description = "Device temperature rising - potential throttling in ${thermalTrend.timeToThreshold} minutes",
                             probability = thermalTrend.confidence,
-                            timeToOccurrence = thermalTrend.timeToThreshold * 60 * 1000L,
-                            severity = Severity.HIGH,
+                            timeToOccurrence = (thermalTrend.timeToThreshold * 60 * 1000).toLong(),
+                            severity = SeverityLevel.ERROR,
                             preventionActions = listOf(
                                 "Reduce processing intensity",
                                 "Allow device to cool down",
@@ -526,9 +532,11 @@ class AISystemHealthMonitor(private val context: Context) {
         if (snapshot.cpuUsage > alertThresholds.cpuUsageHigh) {
             issues.add(
                 SystemIssue(
-                    type = IssueType.HIGH_CPU_USAGE,
+                    type = IssueType.HIGH_CPU_USAGE.name,
                     description = "CPU usage is ${(snapshot.cpuUsage * 100).toInt()}% (threshold: ${(alertThresholds.cpuUsageHigh * 100).toInt()}%)",
-                    severity = if (snapshot.cpuUsage > 0.9f) Severity.HIGH else Severity.MEDIUM,
+                    severity = if (snapshot.cpuUsage > 0.9f) SeverityLevel.ERROR else SeverityLevel.WARNING,
+                    timestamp = System.currentTimeMillis(),
+                    recommendations = listOf("Reduce sensor sampling frequency", "Lower 3D visualization frame rate"),
                     value = snapshot.cpuUsage
                 )
             )
@@ -537,9 +545,11 @@ class AISystemHealthMonitor(private val context: Context) {
         if (snapshot.memoryUsage > alertThresholds.memoryUsageHigh) {
             issues.add(
                 SystemIssue(
-                    type = IssueType.HIGH_MEMORY_USAGE,
+                    type = IssueType.HIGH_MEMORY_USAGE.name,
                     description = "Memory usage is ${(snapshot.memoryUsage * 100).toInt()}% (threshold: ${(alertThresholds.memoryUsageHigh * 100).toInt()}%)",
-                    severity = if (snapshot.memoryUsage > 0.95f) Severity.HIGH else Severity.MEDIUM,
+                    severity = if (snapshot.memoryUsage > 0.95f) SeverityLevel.ERROR else SeverityLevel.WARNING,
+                    timestamp = System.currentTimeMillis(),
+                    recommendations = listOf("Clear old point cloud data", "Reduce 3D visualization detail level"),
                     value = snapshot.memoryUsage
                 )
             )
@@ -548,9 +558,11 @@ class AISystemHealthMonitor(private val context: Context) {
         if (snapshot.batteryLevel < alertThresholds.batteryLevelLow) {
             issues.add(
                 SystemIssue(
-                    type = IssueType.LOW_BATTERY,
+                    type = IssueType.LOW_BATTERY.name,
                     description = "Battery level is ${(snapshot.batteryLevel * 100).toInt()}% (threshold: ${(alertThresholds.batteryLevelLow * 100).toInt()}%)",
-                    severity = if (snapshot.batteryLevel < 0.1f) Severity.HIGH else Severity.MEDIUM,
+                    severity = if (snapshot.batteryLevel < 0.1f) SeverityLevel.ERROR else SeverityLevel.WARNING,
+                    timestamp = System.currentTimeMillis(),
+                    recommendations = listOf("Enable battery saver mode", "Reduce screen brightness"),
                     value = snapshot.batteryLevel
                 )
             )
@@ -559,9 +571,11 @@ class AISystemHealthMonitor(private val context: Context) {
         if (snapshot.temperature > alertThresholds.temperatureHigh) {
             issues.add(
                 SystemIssue(
-                    type = IssueType.HIGH_TEMPERATURE,
+                    type = IssueType.HIGH_TEMPERATURE.name,
                     description = "Device temperature is elevated (${(snapshot.temperature * 100).toInt()}%)",
-                    severity = if (snapshot.temperature > 0.8f) Severity.HIGH else Severity.MEDIUM,
+                    severity = if (snapshot.temperature > 0.8f) SeverityLevel.ERROR else SeverityLevel.WARNING,
+                    timestamp = System.currentTimeMillis(),
+                    recommendations = listOf("Allow device to cool down", "Reduce processing intensity"),
                     value = snapshot.temperature
                 )
             )
@@ -700,7 +714,7 @@ class AISystemHealthMonitor(private val context: Context) {
                         PerformanceAlert(
                             type = AlertType.CRITICAL,
                             message = "Critical memory usage: ${(snapshot.memoryUsage * 100).toInt()}%",
-                            severity = Severity.HIGH,
+                            severity = SeverityLevel.ERROR,
                             data = snapshot,
                             timestamp = System.currentTimeMillis()
                         )
@@ -712,7 +726,7 @@ class AISystemHealthMonitor(private val context: Context) {
                         PerformanceAlert(
                             type = AlertType.CRITICAL,
                             message = "Critical battery level: ${(snapshot.batteryLevel * 100).toInt()}%",
-                            severity = Severity.HIGH,
+                            severity = SeverityLevel.ERROR,
                             data = snapshot,
                             timestamp = System.currentTimeMillis()
                         )
@@ -908,21 +922,11 @@ enum class SystemStatus {
     EXCELLENT, GOOD, FAIR, POOR, CRITICAL, UNKNOWN
 }
 
-data class SystemIssue(
-    val type: IssueType,
-    val description: String,
-    val severity: Severity,
-    val value: Float
-)
+// SystemIssue is defined in AIDataModels.kt
 
-enum class IssueType {
-    HIGH_CPU_USAGE, HIGH_MEMORY_USAGE, LOW_BATTERY, HIGH_TEMPERATURE,
-    MEMORY_EXHAUSTION, CPU_OVERLOAD, BATTERY_DEPLETION, THERMAL_THROTTLING
-}
+// IssueType enum is defined in AIDataModels.kt
 
-enum class Severity {
-    LOW, MEDIUM, HIGH, CRITICAL
-}
+// Severity enum is replaced by SeverityLevel in AIDataModels.kt
 
 data class TrendAnalysis(
     val cpuTrend: TrendDirection,
@@ -953,14 +957,14 @@ data class PredictedIssue(
     val description: String,
     val probability: Float,
     val timeToOccurrence: Long, // milliseconds
-    val severity: Severity,
+    val severity: SeverityLevel,
     val preventionActions: List<String>
 )
 
 data class PerformanceAlert(
     val type: AlertType,
     val message: String,
-    val severity: Severity,
+    val severity: SeverityLevel,
     val data: Any,
     val timestamp: Long
 )
@@ -981,9 +985,7 @@ enum class OptimizationType {
     MEMORY_CLEANUP, CPU_OPTIMIZATION, BATTERY_OPTIMIZATION, NETWORK_OPTIMIZATION
 }
 
-enum class SuggestionPriority {
-    LOW, MEDIUM, HIGH
-}
+// SuggestionPriority is defined in AIDataModels.kt
 
 data class OptimizationResult(
     val optimizations: List<AppliedOptimization>,

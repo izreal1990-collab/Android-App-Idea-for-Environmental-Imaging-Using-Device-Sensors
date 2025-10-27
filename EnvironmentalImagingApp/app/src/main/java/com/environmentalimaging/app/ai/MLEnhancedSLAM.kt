@@ -3,7 +3,7 @@ package com.environmentalimaging.app.ai
 import android.content.Context
 import android.util.Log
 import com.environmentalimaging.app.data.*
-import com.environmentalimaging.app.slam.SLAMState
+import com.environmentalimaging.app.data.SlamState
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import org.tensorflow.lite.Interpreter
@@ -27,8 +27,8 @@ class MLEnhancedSLAM(private val context: Context) {
     private var landmarkClassificationModel: Interpreter? = null
     
     // Enhanced SLAM outputs
-    private val _enhancedSLAMState = MutableSharedFlow<EnhancedSLAMState>()
-    val enhancedSLAMState: SharedFlow<EnhancedSLAMState> = _enhancedSLAMState.asSharedFlow()
+    private val _enhancedSlamState = MutableSharedFlow<EnhancedSlamState>()
+    val enhancedSlamState: SharedFlow<EnhancedSlamState> = _enhancedSlamState.asSharedFlow()
     
     private val _mlInsights = MutableSharedFlow<MLSLAMInsight>()
     val mlInsights: SharedFlow<MLSLAMInsight> = _mlInsights.asSharedFlow()
@@ -79,8 +79,8 @@ class MLEnhancedSLAM(private val context: Context) {
     suspend fun processSensorMeasurements(
         measurements: List<RangingMeasurement>,
         imuData: IMUData?,
-        currentSLAMState: SLAMState
-    ): EnhancedSLAMState {
+        currentSlamState: SlamState
+    ): EnhancedSlamState {
         return withContext(Dispatchers.Default) {
             try {
                 // Create sensor fusion data
@@ -88,7 +88,7 @@ class MLEnhancedSLAM(private val context: Context) {
                     rangingMeasurements = measurements,
                     imuData = imuData,
                     timestamp = System.currentTimeMillis(),
-                    devicePose = currentSLAMState.devicePose
+                    devicePose = currentSlamState.devicePose
                 )
                 
                 // Add to history
@@ -104,17 +104,17 @@ class MLEnhancedSLAM(private val context: Context) {
                 val denoised = performNoiseReduction(fusedMeasurements)
                 
                 // Trajectory prediction
-                val predictedTrajectory = predictTrajectory(currentSLAMState)
+                val predictedTrajectory = predictTrajectory(currentSlamState)
                 
                 // Enhanced landmark detection
-                val enhancedLandmarks = enhanceSearchLandmarkDetection(measurements, currentSLAMState)
+                val enhancedLandmarks = enhanceSearchLandmarkDetection(measurements, currentSlamState)
                 
                 // Calculate confidence metrics
                 val confidenceMetrics = calculateConfidenceMetrics(denoised, predictedTrajectory)
                 
                 // Create enhanced SLAM state
-                val enhancedState = EnhancedSLAMState(
-                    baseSLAMState = currentSLAMState,
+                val enhancedState = EnhancedSlamState(
+                    baseSlamState = currentSlamState,
                     enhancedMeasurements = denoised,
                     predictedTrajectory = predictedTrajectory,
                     enhancedLandmarks = enhancedLandmarks,
@@ -123,7 +123,7 @@ class MLEnhancedSLAM(private val context: Context) {
                     timestamp = System.currentTimeMillis()
                 )
                 
-                _enhancedSLAMState.emit(enhancedState)
+                _enhancedSlamState.emit(enhancedState)
                 
                 // Generate ML insights
                 generateMLInsights(enhancedState)
@@ -133,7 +133,7 @@ class MLEnhancedSLAM(private val context: Context) {
             } catch (e: Exception) {
                 Log.e(TAG, "Error in ML processing", e)
                 // Fallback to basic SLAM state
-                EnhancedSLAMState.fromBasicSLAM(currentSLAMState)
+                EnhancedSlamState.fromBasicSLAM(currentSlamState)
             }
         }
     }
@@ -175,7 +175,7 @@ class MLEnhancedSLAM(private val context: Context) {
     /**
      * Adapt SLAM parameters based on ML analysis
      */
-    suspend fun adaptSLAMParameters(slamState: SLAMState): SLAMParameterRecommendations {
+    suspend fun adaptSLAMParameters(slamState: SlamState): SLAMParameterRecommendations {
         return withContext(Dispatchers.Default) {
             try {
                 val recommendations = SLAMParameterRecommendations()
@@ -368,13 +368,13 @@ class MLEnhancedSLAM(private val context: Context) {
         }
     }
     
-    private suspend fun predictTrajectory(currentSLAMState: SLAMState): List<PredictedTrajectoryPoint> {
+    private suspend fun predictTrajectory(currentSlamState: SlamState): List<PredictedTrajectoryPoint> {
         return try {
             trajectoryPredictionModel?.let { model ->
                 val predictions = mutableListOf<PredictedTrajectoryPoint>()
                 
                 // Prepare input from trajectory history
-                val inputArray = prepareTrajectoryPredictionInput(currentSLAMState)
+                val inputArray = prepareTrajectoryPredictionInput(currentSlamState)
                 val outputArray = Array(1) { FloatArray(predictionHorizon * 4) } // x, y, z, confidence for each step
                 
                 model.run(inputArray, outputArray)
@@ -400,7 +400,7 @@ class MLEnhancedSLAM(private val context: Context) {
                 
             } ?: run {
                 // Fallback: simple linear prediction
-                generateSimpleTrajectoryPrediction(currentSLAMState)
+                generateSimpleTrajectoryPrediction(currentSlamState)
             }
             
         } catch (e: Exception) {
@@ -411,13 +411,13 @@ class MLEnhancedSLAM(private val context: Context) {
     
     private suspend fun enhanceSearchLandmarkDetection(
         measurements: List<RangingMeasurement>,
-        slamState: SLAMState
+        slamState: SlamState
     ): List<EnhancedLandmark> {
         return try {
             val enhancedLandmarks = mutableListOf<EnhancedLandmark>()
             
             landmarkClassificationModel?.let { model ->
-                slamState.landmarks.forEach { landmark ->
+                slamState.landmarks.forEach { landmark: Point3D ->
                     val inputArray = prepareLandmarkClassificationInput(landmark, measurements)
                     val outputArray = Array(1) { FloatArray(8) } // 8 landmark types + confidence
                     
@@ -441,7 +441,7 @@ class MLEnhancedSLAM(private val context: Context) {
                 }
             } ?: run {
                 // Fallback: simple heuristic classification
-                slamState.landmarks.map { landmark ->
+                slamState.landmarks.map { landmark: Point3D ->
                     EnhancedLandmark(
                         originalLandmark = landmark,
                         classifiedType = LandmarkType.UNKNOWN,
@@ -480,7 +480,7 @@ class MLEnhancedSLAM(private val context: Context) {
         )
     }
     
-    private suspend fun generateMLInsights(enhancedState: EnhancedSLAMState) {
+    private suspend fun generateMLInsights(enhancedState: EnhancedSlamState) {
         try {
             val insights = mutableListOf<MLSLAMInsight>()
             
@@ -596,7 +596,7 @@ class MLEnhancedSLAM(private val context: Context) {
         return arrayOf(input)
     }
     
-    private fun prepareTrajectoryPredictionInput(slamState: SLAMState): Array<FloatArray> {
+    private fun prepareTrajectoryPredictionInput(slamState: SlamState): Array<FloatArray> {
         val recentTrajectory = trajectoryHistory.takeLast(10)
         val input = FloatArray(40) // 10 points * 4 features (x, y, z, timestamp)
         
@@ -687,7 +687,7 @@ class MLEnhancedSLAM(private val context: Context) {
         }
     }
     
-    private fun generateSimpleTrajectoryPrediction(slamState: SLAMState): List<PredictedTrajectoryPoint> {
+    private fun generateSimpleTrajectoryPrediction(slamState: SlamState): List<PredictedTrajectoryPoint> {
         val predictions = mutableListOf<PredictedTrajectoryPoint>()
         
         if (trajectoryHistory.size >= 2) {
@@ -749,7 +749,7 @@ class MLEnhancedSLAM(private val context: Context) {
     private fun analyzeTrackingStability(): Float = 0.7f // Placeholder
     private fun analyzeSensorPerformance(): Float = 0.8f // Placeholder
     private fun analyzeEnvironmentComplexity(): Float = 0.6f // Placeholder
-    private fun calculateMLImprovement(enhancedState: EnhancedSLAMState): Float = 0.15f // Placeholder
+    private fun calculateMLImprovement(enhancedState: EnhancedSlamState): Float = 0.15f // Placeholder
     private fun calculateLandmarkReliability(landmark: Point3D, measurements: List<RangingMeasurement>): Float = 0.7f
     private fun calculateTemporalStability(landmark: Point3D): Float = 0.8f
     private fun calculateTemporalConsistency(): Float = 0.75f
@@ -781,8 +781,8 @@ class MLEnhancedSLAM(private val context: Context) {
 }
 
 // Enhanced data classes for ML SLAM
-data class EnhancedSLAMState(
-    val baseSLAMState: SLAMState,
+data class EnhancedSlamState(
+    val baseSlamState: SlamState,
     val enhancedMeasurements: List<EnhancedRangingMeasurement>,
     val predictedTrajectory: List<PredictedTrajectoryPoint>,
     val enhancedLandmarks: List<EnhancedLandmark>,
@@ -791,9 +791,9 @@ data class EnhancedSLAMState(
     val timestamp: Long
 ) {
     companion object {
-        fun fromBasicSLAM(slamState: SLAMState): EnhancedSLAMState {
-            return EnhancedSLAMState(
-                baseSLAMState = slamState,
+        fun fromBasicSLAM(slamState: SlamState): EnhancedSlamState {
+            return EnhancedSlamState(
+                baseSlamState = slamState,
                 enhancedMeasurements = emptyList(),
                 predictedTrajectory = emptyList(),
                 enhancedLandmarks = emptyList(),

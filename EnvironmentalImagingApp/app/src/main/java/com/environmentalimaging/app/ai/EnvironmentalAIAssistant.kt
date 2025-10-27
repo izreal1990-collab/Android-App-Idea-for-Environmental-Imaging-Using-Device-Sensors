@@ -3,7 +3,8 @@ package com.environmentalimaging.app.ai
 import android.content.Context
 import android.util.Log
 import com.environmentalimaging.app.data.*
-import com.environmentalimaging.app.slam.SLAMState
+import com.environmentalimaging.app.data.SlamState
+import com.environmentalimaging.app.ai.SuggestionPriority
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import okhttp3.*
@@ -70,7 +71,7 @@ class EnvironmentalAIAssistant(private val context: Context) {
      */
     fun updateContext(
         sensorData: List<RangingMeasurement> = conversationContext.currentSensorData,
-        slamState: SLAMState? = conversationContext.currentSLAMState as? SLAMState,
+        slamState: SlamState? = conversationContext.currentSLAMState as? SlamState,
         environment: List<Point3D> = conversationContext.currentEnvironment,
         insights: List<SensorInsight> = conversationContext.recentInsights,
         systemHealth: SystemHealthReport? = conversationContext.systemHealth
@@ -394,7 +395,7 @@ class EnvironmentalAIAssistant(private val context: Context) {
     }
     
     private suspend fun explainSLAMResults(userMessage: String): AIResponse {
-        val slamState = conversationContext.currentSLAMState as? SLAMState
+        val slamState = conversationContext.currentSLAMState as? SlamState
         
         if (slamState == null) {
             return AIResponse(
@@ -641,7 +642,7 @@ class EnvironmentalAIAssistant(private val context: Context) {
         }
     }
     
-    private fun assessTrackingQuality(slamState: SLAMState): String {
+    private fun assessTrackingQuality(slamState: SlamState): String {
         return when {
             slamState.confidence > 0.8f && slamState.landmarks.size > 10 -> "Excellent"
             slamState.confidence > 0.6f && slamState.landmarks.size > 5 -> "Good"
@@ -817,9 +818,7 @@ data class AISuggestion(
     val category: String
 )
 
-enum class SuggestionPriority {
-    LOW, MEDIUM, HIGH
-}
+// SuggestionPriority enum is defined in AIDataModels.kt
 
 data class PointCloudAnalysis(
     val estimatedRoomSize: RoomDimensions?,
@@ -829,3 +828,7 @@ data class PointCloudAnalysis(
     val detectedFeatures: List<String>,
     val recommendations: List<String>
 )
+
+// Extension functions for formatting numbers
+private fun Float.format(decimals: Int): String = "%.${decimals}f".format(this)
+private fun Double.format(decimals: Int): String = "%.${decimals}f".format(this)
