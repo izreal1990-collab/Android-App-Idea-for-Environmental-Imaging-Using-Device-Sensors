@@ -1,3 +1,16 @@
+/*
+ * Environmental Imaging App
+ * 
+ * Developer: Jovan Blango
+ * Copyright (c) 2025 Jovan Blango
+ * 
+ * An advanced Android application for environmental imaging and spatial mapping
+ * using device sensors including camera, WiFi RTT, Bluetooth, acoustics, and IMU.
+ * 
+ * GitHub: https://github.com/izreal1990-collab/Android-App-Idea-for-Environmental-Imaging-Using-Device-Sensors
+ */
+
+
 package com.environmentalimaging.app.scanning
 
 import android.content.Context

@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Environmental Imaging App - Android Manifest
+    
+    Developer: Jovan Blango
+    Copyright (c) 2025 Jovan Blango
+    GitHub: https://github.com/izreal1990-collab/Android-App-Idea-for-Environmental-Imaging-Using-Device-Sensors
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
@@ -15,6 +22,9 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     
+    <!-- Camera permission -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    
     <!-- Audio recording permissions for acoustic ranging -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
@@ -24,6 +34,11 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" 
         tools:ignore="ScopedStorage" />
+    
+    <!-- Foreground service permissions -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     
     <!-- Hardware features -->
     <uses-feature android:name="android.hardware.wifi.rtt" android:required="false" />
@@ -43,6 +58,20 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.EnvironmentalImagingApp"
         tools:targetApi="31">
+        
+        <!-- Application metadata -->
+        <meta-data
+            android:name="com.environmentalimaging.app.DEVELOPER"
+            android:value="Jovan Blango" />
+        <meta-data
+            android:name="com.environmentalimaging.app.COPYRIGHT"
+            android:value="Copyright © 2025 Jovan Blango" />
+        <meta-data
+            android:name="com.environmentalimaging.app.REPOSITORY"
+            android:value="https://github.com/izreal1990-collab/Android-App-Idea-for-Environmental-Imaging-Using-Device-Sensors" />
+        <meta-data
+            android:name="com.environmentalimaging.app.VERSION"
+            android:value="1.0" />
         
         <activity
             android:name=".MainActivity"
@@ -79,7 +108,7 @@
             android:parentActivityName=".MainActivity" />
         
         <activity
-            android:name=".ai.ConversationalAIActivity"
+            android:name=".ConversationalAIActivity"
             android:exported="false"
             android:theme="@style/Theme.EnvironmentalImagingApp"
             android:windowSoftInputMode="adjustResize"
