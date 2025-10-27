@@ -274,6 +274,17 @@
                 app:strokeColor="@color/text_secondary"
                 app:icon="@drawable/ic_chat" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/exportButton"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="Export"
+                android:textColor="@color/text_secondary"
+                app:strokeColor="@color/text_secondary"
+                app:icon="@drawable/ic_export" />
+
         </LinearLayout>
 
     </LinearLayout>

@@ -19,6 +19,8 @@ import com.environmentalimaging.app.storage.BackgroundStorageProcessor
 import com.environmentalimaging.app.visualization.*
 import com.environmentalimaging.app.ai.*
 import com.environmentalimaging.app.scanning.*
+import com.environmentalimaging.app.export.AdvancedDataExportActivity
+import android.content.Intent
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
@@ -59,6 +61,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var scanModesButton: MaterialButton
     private lateinit var enhanced3DButton: MaterialButton
     private lateinit var conversationalAIButton: MaterialButton
+    private lateinit var exportButton: MaterialButton
     
     // Status indicators
     private lateinit var statusText: android.widget.TextView
@@ -160,6 +163,7 @@ class MainActivity : AppCompatActivity() {
         scanModesButton = findViewById(R.id.scanModesButton)
         enhanced3DButton = findViewById(R.id.enhanced3DButton)
         conversationalAIButton = findViewById(R.id.conversationalAIButton)
+        exportButton = findViewById(R.id.exportButton)
         
         statusText = findViewById(R.id.statusText)
         landmarkCountText = findViewById(R.id.landmarkCountText)
@@ -182,6 +186,7 @@ class MainActivity : AppCompatActivity() {
         scanModesButton.setOnClickListener { openScanningModes() }
         enhanced3DButton.setOnClickListener { openEnhanced3DVisualization() }
         conversationalAIButton.setOnClickListener { openConversationalAI() }
+        exportButton.setOnClickListener { openAdvancedDataExport() }
         
         // Set initial state
         updateUI()
@@ -605,6 +610,15 @@ class MainActivity : AppCompatActivity() {
     
     private fun openConversationalAI() {
         val intent = ConversationalAIActivity.createIntent(this)
+        startActivity(intent)
+    }
+    
+    private fun openAdvancedDataExport() {
+        val intent = Intent(this, AdvancedDataExportActivity::class.java)
+        // Pass current scan session data if available
+        currentScanSession?.let { session ->
+            intent.putExtra(AdvancedDataExportActivity.EXTRA_SCAN_SESSION, session)
+        }
         startActivity(intent)
     }
     
