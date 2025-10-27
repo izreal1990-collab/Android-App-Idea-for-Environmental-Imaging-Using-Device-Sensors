@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <!-- Point Size Setting -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Point Size"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="24dp">
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/pointSizeSlider"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:valueFrom="1.0"
+            android:valueTo="15.0"
+            android:stepSize="0.5"
+            android:value="5.0" />
+
+        <TextView
+            android:id="@+id/pointSizeValue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="5.0"
+            android:textSize="14sp"
+            android:layout_marginStart="12dp"
+            android:minWidth="40dp"
+            android:gravity="end" />
+
+    </LinearLayout>
+
+    <!-- Camera Sensitivity Setting -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Camera Sensitivity"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/cameraSensitivitySlider"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:valueFrom="0.1"
+            android:valueTo="3.0"
+            android:stepSize="0.1"
+            android:value="1.0" />
+
+        <TextView
+            android:id="@+id/cameraSensitivityValue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1.0"
+            android:textSize="14sp"
+            android:layout_marginStart="12dp"
+            android:minWidth="40dp"
+            android:gravity="end" />
+
+    </LinearLayout>
+
+</LinearLayout>

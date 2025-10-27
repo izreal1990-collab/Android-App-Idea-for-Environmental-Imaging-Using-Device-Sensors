@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Point Size -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Point Size"
+            android:textStyle="bold"
+            android:textSize="16sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <com.google.android.material.slider.Slider
+                android:id="@+id/pointSizeSlider"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:valueFrom="1.0"
+                android:valueTo="15.0"
+                android:stepSize="0.5"
+                android:value="5.0" />
+
+            <TextView
+                android:id="@+id/pointSizeValue"
+                android:layout_width="50dp"
+                android:layout_height="wrap_content"
+                android:text="5.0"
+                android:gravity="end"
+                android:layout_marginStart="8dp" />
+
+        </LinearLayout>
+
+        <!-- Camera Sensitivity -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Camera Sensitivity"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:layout_marginTop="16dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <com.google.android.material.slider.Slider
+                android:id="@+id/cameraSensitivitySlider"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:valueFrom="0.1"
+                android:valueTo="3.0"
+                android:stepSize="0.1"
+                android:value="1.0" />
+
+            <TextView
+                android:id="@+id/cameraSensitivityValue"
+                android:layout_width="50dp"
+                android:layout_height="wrap_content"
+                android:text="1.0"
+                android:gravity="end"
+                android:layout_marginStart="8dp" />
+
+        </LinearLayout>
+
+        <!-- Display Options -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Display Options"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:layout_marginTop="16dp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/showGridSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Show Grid"
+            android:layout_marginTop="8dp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/showAxesSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Show Axes" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/showTrajectorySwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Show Trajectory" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/enableLightingSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Enable Lighting" />
+
+    </LinearLayout>
+
+</ScrollView>

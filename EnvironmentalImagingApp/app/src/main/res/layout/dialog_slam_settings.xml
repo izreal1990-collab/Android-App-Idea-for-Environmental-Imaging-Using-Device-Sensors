@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- EKF Parameters -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Extended Kalman Filter"
+            android:textStyle="bold"
+            android:textSize="16sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Process Noise"
+            android:textSize="14sp"
+            android:layout_marginTop="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <com.google.android.material.slider.Slider
+                android:id="@+id/processNoiseSlider"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:valueFrom="0.001"
+                android:valueTo="0.1"
+                android:stepSize="0.001"
+                android:value="0.01" />
+
+            <TextView
+                android:id="@+id/processNoiseValue"
+                android:layout_width="60dp"
+                android:layout_height="wrap_content"
+                android:text="0.010"
+                android:gravity="end"
+                android:layout_marginStart="8dp" />
+
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Measurement Noise"
+            android:textSize="14sp"
+            android:layout_marginTop="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <com.google.android.material.slider.Slider
+                android:id="@+id/measurementNoiseSlider"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:valueFrom="0.01"
+                android:valueTo="0.5"
+                android:stepSize="0.01"
+                android:value="0.1" />
+
+            <TextView
+                android:id="@+id/measurementNoiseValue"
+                android:layout_width="60dp"
+                android:layout_height="wrap_content"
+                android:text="0.100"
+                android:gravity="end"
+                android:layout_marginStart="8dp" />
+
+        </LinearLayout>
+
+        <!-- Loop Closure -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Loop Closure"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:layout_marginTop="16dp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/loopClosureSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Enable Loop Closure"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Threshold Distance (m)"
+            android:textSize="14sp"
+            android:layout_marginTop="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <com.google.android.material.slider.Slider
+                android:id="@+id/loopClosureThresholdSlider"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:valueFrom="0.1"
+                android:valueTo="2.0"
+                android:stepSize="0.1"
+                android:value="0.5" />
+
+            <TextView
+                android:id="@+id/loopClosureThresholdValue"
+                android:layout_width="60dp"
+                android:layout_height="wrap_content"
+                android:text="0.50m"
+                android:gravity="end"
+                android:layout_marginStart="8dp" />
+
+        </LinearLayout>
+
+        <!-- Landmark Parameters -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Landmarks"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:layout_marginTop="16dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Confidence Threshold"
+            android:textSize="14sp"
+            android:layout_marginTop="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <com.google.android.material.slider.Slider
+                android:id="@+id/landmarkConfidenceSlider"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:valueFrom="0.1"
+                android:valueTo="1.0"
+                android:stepSize="0.05"
+                android:value="0.7" />
+
+            <TextView
+                android:id="@+id/landmarkConfidenceValue"
+                android:layout_width="60dp"
+                android:layout_height="wrap_content"
+                android:text="0.70"
+                android:gravity="end"
+                android:layout_marginStart="8dp" />
+
+        </LinearLayout>
+
+        <!-- Optimization -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Optimization"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:layout_marginTop="16dp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/optimizationSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Enable Graph Optimization"
+            android:layout_marginTop="8dp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/outlierRejectionSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Enable Outlier Rejection" />
+
+    </LinearLayout>
+
+</ScrollView>

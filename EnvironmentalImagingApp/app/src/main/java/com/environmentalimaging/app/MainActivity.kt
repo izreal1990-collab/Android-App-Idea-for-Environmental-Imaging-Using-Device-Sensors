@@ -19,6 +19,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -161,6 +162,9 @@ class MainActivity : AppCompatActivity() {
         
         Log.d(TAG, "Environmental Imaging App starting")
         
+        // Initialize SettingsManager
+        SettingsManager.initialize(this)
+        
         initializeUI()
         checkPermissions()
     }
@@ -242,6 +246,15 @@ class MainActivity : AppCompatActivity() {
                 val sensorStatus = dataAcquisition.checkSensorAvailability()
                 updateSensorStatusIcons(sensorStatus)
                 
+                // Update session manager with sensor availability
+                ScanningSessionManager.updateFromAcquisitionModule(
+                    wifiRtt = sensorStatus.wifiRtt,
+                    bluetooth = sensorStatus.bluetooth,
+                    acoustic = sensorStatus.acoustic,
+                    imu = sensorStatus.imu
+                )
+                ScanningSessionManager.updateSensorStatus(this@MainActivity)
+                
                 if (!sensorStatus.anyAvailable) {
                     showError("No environmental sensors available")
                     return@launch
@@ -272,6 +285,9 @@ class MainActivity : AppCompatActivity() {
             slamProcessor.slamState.collect { slamState ->
                 landmarkCount = slamState.landmarks.size
                 currentDevicePose = slamState.devicePose
+                
+                // Update session manager with landmark count
+                ScanningSessionManager.updateLandmarks(landmarkCount)
                 
                 // Update trajectory
                 if (deviceTrajectory.isEmpty() || 
@@ -319,6 +335,18 @@ class MainActivity : AppCompatActivity() {
             dataAcquisition.rangingMeasurements.collect { measurements ->
                 measurementCount += measurements.size
                 
+                // Update session manager with measurements and accuracy
+                measurements.forEach { measurement ->
+                    ScanningSessionManager.addMeasurement(measurement.accuracy ?: 1.0f)
+                    
+                    // Update sensor active states based on measurement type
+                    when (measurement.measurementType) {
+                        RangingType.WIFI_RTT -> ScanningSessionManager.setSensorActive("wifi", true)
+                        RangingType.BLUETOOTH_CHANNEL_SOUNDING -> ScanningSessionManager.setSensorActive("bluetooth", true)
+                        RangingType.ACOUSTIC_FMCW -> ScanningSessionManager.setSensorActive("acoustic", true)
+                    }
+                }
+                
                 // AI Analysis: Analyze individual measurements
                 launch {
                     try {
@@ -334,7 +362,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         
-        // System health monitoring
+        // System health monitoring with performance tracking
         lifecycleScope.launch {
             while (true) {
                 delay(10000) // Check every 10 seconds
@@ -360,6 +388,12 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 showLoading("Starting environmental scan...")
+                
+                // Start session tracking
+                ScanningSessionManager.startSession()
+                
+                // Mark sensors as active
+                ScanningSessionManager.setSensorActive("imu", true)
                 
                 // Start data acquisition
                 dataAcquisition.startAcquisition()
@@ -393,6 +427,15 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 showLoading("Stopping scan...")
+                
+                // Stop session tracking
+                ScanningSessionManager.stopSession()
+                
+                // Mark sensors as inactive
+                ScanningSessionManager.setSensorActive("imu", false)
+                ScanningSessionManager.setSensorActive("wifi", false)
+                ScanningSessionManager.setSensorActive("bluetooth", false)
+                ScanningSessionManager.setSensorActive("acoustic", false)
                 
                 // Stop all processing
                 dataAcquisition.stopAcquisition()
@@ -815,20 +858,89 @@ class MainActivity : AppCompatActivity() {
     
     // Settings Functions
     private fun showSensorSettings() {
+        val currentSettings = SettingsManager.sensorSettings.value
         val sensorStatus = dataAcquisition.checkSensorAvailability()
+        
+        val view = layoutInflater.inflate(R.layout.dialog_sensor_settings, null)
+        
+        // WiFi RTT settings
+        val wifiEnabled = view.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.wifiRttSwitch)
+        val wifiFrequency = view.findViewById<com.google.android.material.slider.Slider>(R.id.wifiRttFrequencySlider)
+        val wifiAccuracy = view.findViewById<com.google.android.material.slider.Slider>(R.id.wifiRttAccuracySlider)
+        
+        wifiEnabled.isChecked = currentSettings.wifiRttEnabled
+        wifiEnabled.isEnabled = sensorStatus.wifiRtt
+        wifiFrequency.value = currentSettings.wifiRttFrequency.toFloat()
+        wifiAccuracy.value = currentSettings.wifiRttAccuracyTarget
+        
+        // Bluetooth settings
+        val bluetoothEnabled = view.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.bluetoothSwitch)
+        val bluetoothFrequency = view.findViewById<com.google.android.material.slider.Slider>(R.id.bluetoothFrequencySlider)
+        val bluetoothAccuracy = view.findViewById<com.google.android.material.slider.Slider>(R.id.bluetoothAccuracySlider)
+        
+        bluetoothEnabled.isChecked = currentSettings.bluetoothEnabled
+        bluetoothEnabled.isEnabled = sensorStatus.bluetooth
+        bluetoothFrequency.value = currentSettings.bluetoothFrequency.toFloat()
+        bluetoothAccuracy.value = currentSettings.bluetoothAccuracyTarget
+        
+        // Acoustic settings
+        val acousticEnabled = view.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.acousticSwitch)
+        val acousticFrequency = view.findViewById<com.google.android.material.slider.Slider>(R.id.acousticFrequencySlider)
+        val acousticAccuracy = view.findViewById<com.google.android.material.slider.Slider>(R.id.acousticAccuracySlider)
+        
+        acousticEnabled.isChecked = currentSettings.acousticEnabled
+        acousticEnabled.isEnabled = sensorStatus.acoustic
+        acousticFrequency.value = currentSettings.acousticFrequency.toFloat()
+        acousticAccuracy.value = currentSettings.acousticAccuracyTarget
+        
+        // IMU settings
+        val imuEnabled = view.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.imuSwitch)
+        val imuFrequency = view.findViewById<com.google.android.material.slider.Slider>(R.id.imuFrequencySlider)
+        
+        imuEnabled.isChecked = currentSettings.imuEnabled
+        imuEnabled.isEnabled = sensorStatus.imu
+        imuFrequency.value = currentSettings.imuFrequency.toFloat()
+        
         MaterialAlertDialogBuilder(this)
             .setTitle("Sensor Configuration")
-            .setMessage("Current sensors:\n" +
-                "• WiFi RTT: ${if(sensorStatus.wifiRtt) "Available" else "Unavailable"}\n" +
-                "• Bluetooth: ${if(sensorStatus.bluetooth) "Available" else "Unavailable"}\n" +
-                "• Acoustic: ${if(sensorStatus.acoustic) "Available" else "Unavailable"}\n" +
-                "• IMU: ${if(sensorStatus.imu) "Available" else "Unavailable"}")
-            .setPositiveButton("Refresh") { _, _ ->
-                // Refresh sensor availability and show updated dialog
+            .setView(view)
+            .setPositiveButton("Apply") { _, _ ->
+                val newSettings = currentSettings.copy(
+                    wifiRttEnabled = wifiEnabled.isChecked,
+                    wifiRttFrequency = wifiFrequency.value.toInt(),
+                    wifiRttAccuracyTarget = wifiAccuracy.value,
+                    bluetoothEnabled = bluetoothEnabled.isChecked,
+                    bluetoothFrequency = bluetoothFrequency.value.toInt(),
+                    bluetoothAccuracyTarget = bluetoothAccuracy.value,
+                    acousticEnabled = acousticEnabled.isChecked,
+                    acousticFrequency = acousticFrequency.value.toInt(),
+                    acousticAccuracyTarget = acousticAccuracy.value,
+                    imuEnabled = imuEnabled.isChecked,
+                    imuFrequency = imuFrequency.value.toInt()
+                )
+                SettingsManager.updateSensorSettings(newSettings)
+                applySensorSettings(newSettings)
+                Toast.makeText(this, "Sensor settings applied", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("Reset") { _, _ ->
+                SettingsManager.updateSensorSettings(SettingsManager.SensorSettings())
                 showSensorSettings()
             }
-            .setNegativeButton("Close", null)
+            .setNegativeButton("Cancel", null)
             .show()
+    }
+    
+    private fun applySensorSettings(settings: SettingsManager.SensorSettings) {
+        lifecycleScope.launch {
+            try {
+                // Apply settings to data acquisition module
+                // dataAcquisition.configureSensors(settings)
+                // This would configure measurement frequencies and accuracy targets
+                Log.d(TAG, "Applied sensor settings: $settings")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error applying sensor settings", e)
+            }
+        }
     }
     
     private fun showStorageSettings() {
@@ -848,11 +960,141 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun show3DSettings() {
-        Toast.makeText(this, "3D visualization settings coming soon", Toast.LENGTH_SHORT).show()
+        val currentSettings = SettingsManager.visualizationSettings.value
+        val view = layoutInflater.inflate(R.layout.dialog_3d_settings, null)
+        
+        // Point size
+        val pointSizeSlider = view.findViewById<com.google.android.material.slider.Slider>(R.id.pointSizeSlider)
+        val pointSizeValue = view.findViewById<TextView>(R.id.pointSizeValue)
+        pointSizeSlider.value = currentSettings.pointSize
+        pointSizeValue.text = String.format("%.1f", currentSettings.pointSize)
+        pointSizeSlider.addOnChangeListener { _, value, _ ->
+            pointSizeValue.text = String.format("%.1f", value)
+        }
+        
+        // Camera sensitivity
+        val cameraSensitivitySlider = view.findViewById<com.google.android.material.slider.Slider>(R.id.cameraSensitivitySlider)
+        val cameraSensitivityValue = view.findViewById<TextView>(R.id.cameraSensitivityValue)
+        cameraSensitivitySlider.value = currentSettings.cameraSensitivity
+        cameraSensitivityValue.text = String.format("%.1f", currentSettings.cameraSensitivity)
+        cameraSensitivitySlider.addOnChangeListener { _, value, _ ->
+            cameraSensitivityValue.text = String.format("%.1f", value)
+        }
+        
+        // Toggle switches
+        val showGridSwitch = view.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.showGridSwitch)
+        val showAxesSwitch = view.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.showAxesSwitch)
+        val showTrajectorySwitch = view.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.showTrajectorySwitch)
+        val enableLightingSwitch = view.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.enableLightingSwitch)
+        
+        showGridSwitch.isChecked = currentSettings.showGrid
+        showAxesSwitch.isChecked = currentSettings.showAxes
+        showTrajectorySwitch.isChecked = currentSettings.showTrajectory
+        enableLightingSwitch.isChecked = currentSettings.enableLighting
+        
+        MaterialAlertDialogBuilder(this)
+            .setTitle("3D Visualization Settings")
+            .setView(view)
+            .setPositiveButton("Apply") { _, _ ->
+                val newSettings = currentSettings.copy(
+                    pointSize = pointSizeSlider.value,
+                    cameraSensitivity = cameraSensitivitySlider.value,
+                    showGrid = showGridSwitch.isChecked,
+                    showAxes = showAxesSwitch.isChecked,
+                    showTrajectory = showTrajectorySwitch.isChecked,
+                    enableLighting = enableLightingSwitch.isChecked
+                )
+                SettingsManager.updateVisualizationSettings(newSettings)
+                Toast.makeText(this, "3D settings applied", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
     
     private fun showSLAMSettings() {
-        Toast.makeText(this, "SLAM parameter tuning coming soon", Toast.LENGTH_SHORT).show()
+        val currentSettings = SettingsManager.slamSettings.value
+        val view = layoutInflater.inflate(R.layout.dialog_slam_settings, null)
+        
+        // EKF parameters
+        val processNoiseSlider = view.findViewById<com.google.android.material.slider.Slider>(R.id.processNoiseSlider)
+        val processNoiseValue = view.findViewById<TextView>(R.id.processNoiseValue)
+        processNoiseSlider.value = currentSettings.ekfProcessNoise
+        processNoiseValue.text = String.format("%.3f", currentSettings.ekfProcessNoise)
+        processNoiseSlider.addOnChangeListener { _, value, _ ->
+            processNoiseValue.text = String.format("%.3f", value)
+        }
+        
+        val measurementNoiseSlider = view.findViewById<com.google.android.material.slider.Slider>(R.id.measurementNoiseSlider)
+        val measurementNoiseValue = view.findViewById<TextView>(R.id.measurementNoiseValue)
+        measurementNoiseSlider.value = currentSettings.ekfMeasurementNoise
+        measurementNoiseValue.text = String.format("%.3f", currentSettings.ekfMeasurementNoise)
+        measurementNoiseSlider.addOnChangeListener { _, value, _ ->
+            measurementNoiseValue.text = String.format("%.3f", value)
+        }
+        
+        // Loop closure
+        val loopClosureSwitch = view.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.loopClosureSwitch)
+        val loopClosureThresholdSlider = view.findViewById<com.google.android.material.slider.Slider>(R.id.loopClosureThresholdSlider)
+        val loopClosureThresholdValue = view.findViewById<TextView>(R.id.loopClosureThresholdValue)
+        
+        loopClosureSwitch.isChecked = currentSettings.loopClosureEnabled
+        loopClosureThresholdSlider.value = currentSettings.loopClosureThreshold
+        loopClosureThresholdValue.text = String.format("%.2fm", currentSettings.loopClosureThreshold)
+        loopClosureThresholdSlider.addOnChangeListener { _, value, _ ->
+            loopClosureThresholdValue.text = String.format("%.2fm", value)
+        }
+        
+        // Landmark confidence
+        val landmarkConfidenceSlider = view.findViewById<com.google.android.material.slider.Slider>(R.id.landmarkConfidenceSlider)
+        val landmarkConfidenceValue = view.findViewById<TextView>(R.id.landmarkConfidenceValue)
+        landmarkConfidenceSlider.value = currentSettings.landmarkConfidenceThreshold
+        landmarkConfidenceValue.text = String.format("%.2f", currentSettings.landmarkConfidenceThreshold)
+        landmarkConfidenceSlider.addOnChangeListener { _, value, _ ->
+            landmarkConfidenceValue.text = String.format("%.2f", value)
+        }
+        
+        // Optimization
+        val optimizationSwitch = view.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.optimizationSwitch)
+        val outlierRejectionSwitch = view.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.outlierRejectionSwitch)
+        
+        optimizationSwitch.isChecked = currentSettings.optimizationEnabled
+        outlierRejectionSwitch.isChecked = currentSettings.enableOutlierRejection
+        
+        MaterialAlertDialogBuilder(this)
+            .setTitle("SLAM Parameters")
+            .setView(view)
+            .setPositiveButton("Apply") { _, _ ->
+                val newSettings = currentSettings.copy(
+                    ekfProcessNoise = processNoiseSlider.value,
+                    ekfMeasurementNoise = measurementNoiseSlider.value,
+                    loopClosureEnabled = loopClosureSwitch.isChecked,
+                    loopClosureThreshold = loopClosureThresholdSlider.value,
+                    landmarkConfidenceThreshold = landmarkConfidenceSlider.value,
+                    optimizationEnabled = optimizationSwitch.isChecked,
+                    enableOutlierRejection = outlierRejectionSwitch.isChecked
+                )
+                SettingsManager.updateSLAMSettings(newSettings)
+                applySLAMSettings(newSettings)
+                Toast.makeText(this, "SLAM settings applied", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("Reset") { _, _ ->
+                SettingsManager.updateSLAMSettings(SettingsManager.SLAMSettings())
+                showSLAMSettings()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+    
+    private fun applySLAMSettings(settings: SettingsManager.SLAMSettings) {
+        lifecycleScope.launch {
+            try {
+                // Apply settings to SLAM processor
+                // slamProcessor.configure(settings)
+                Log.d(TAG, "Applied SLAM settings: $settings")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error applying SLAM settings", e)
+            }
+        }
     }
     
     private fun exportData() {

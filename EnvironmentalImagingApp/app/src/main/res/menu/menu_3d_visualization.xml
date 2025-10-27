@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_color_mode"
+        android:title="Color Mode"
+        android:icon="@drawable/ic_tune"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_toggle_grid"
+        android:title="Toggle Grid"
+        android:icon="@drawable/ic_3d_rotation"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_toggle_axes"
+        android:title="Toggle Axes"
+        android:icon="@drawable/ic_compass"
+        app:showAsAction="ifRoom" />
+
+</menu>

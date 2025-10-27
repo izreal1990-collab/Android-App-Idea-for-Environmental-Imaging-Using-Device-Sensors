@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- WiFi RTT Settings -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="WiFi RTT"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:layout_marginTop="8dp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/wifiRttSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Enable WiFi RTT" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Frequency (Hz)"
+            android:textSize="14sp"
+            android:layout_marginTop="8dp" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/wifiRttFrequencySlider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="1"
+            android:valueTo="20"
+            android:stepSize="1"
+            android:value="10" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Accuracy Target (m)"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/wifiRttAccuracySlider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="0.05"
+            android:valueTo="0.50"
+            android:stepSize="0.05"
+            android:value="0.10" />
+
+        <!-- Bluetooth Settings -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Bluetooth"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:layout_marginTop="16dp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/bluetoothSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Enable Bluetooth" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Frequency (Hz)"
+            android:textSize="14sp"
+            android:layout_marginTop="8dp" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/bluetoothFrequencySlider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="1"
+            android:valueTo="15"
+            android:stepSize="1"
+            android:value="5" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Accuracy Target (m)"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/bluetoothAccuracySlider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="0.10"
+            android:valueTo="0.50"
+            android:stepSize="0.05"
+            android:value="0.15" />
+
+        <!-- Acoustic Settings -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Acoustic"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:layout_marginTop="16dp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/acousticSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Enable Acoustic" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Frequency (Hz)"
+            android:textSize="14sp"
+            android:layout_marginTop="8dp" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/acousticFrequencySlider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="1"
+            android:valueTo="15"
+            android:stepSize="1"
+            android:value="8" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Accuracy Target (m)"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/acousticAccuracySlider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="0.10"
+            android:valueTo="0.50"
+            android:stepSize="0.05"
+            android:value="0.20" />
+
+        <!-- IMU Settings -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="IMU"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:layout_marginTop="16dp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/imuSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Enable IMU" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Frequency (Hz)"
+            android:textSize="14sp"
+            android:layout_marginTop="8dp" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/imuFrequencySlider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="10"
+            android:valueTo="100"
+            android:stepSize="10"
+            android:value="50" />
+
+    </LinearLayout>
+
+</ScrollView>

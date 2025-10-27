@@ -24,6 +24,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.environmentalimaging.app.ai.*
+import com.environmentalimaging.app.data.ScanningSessionManager
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import kotlinx.coroutines.*
@@ -154,19 +155,33 @@ class PerformanceDashboardActivity : AppCompatActivity() {
         // Initialize AI system health monitor
         aiSystemHealthMonitor = AISystemHealthMonitor(this)
         
-        // Start performance data monitoring with simplified implementation
+        // Collect session data from SessionManager
+        lifecycleScope.launch {
+            ScanningSessionManager.sessionData.collect { sessionData ->
+                updatePerformanceStatistics(sessionData)
+            }
+        }
+        
+        // Collect sensor status from SessionManager
+        lifecycleScope.launch {
+            ScanningSessionManager.sensorStatus.collect { sensorStatus ->
+                updateSensorStatus(sensorStatus)
+            }
+        }
+        
+        // Start performance data monitoring
         performanceUpdateJob = lifecycleScope.launch {
             while (isActive) {
-                updatePerformanceStatistics()
-                updateSensorStatus()
                 updateSystemHealthUI()
                 delay(2000) // Update every 2 seconds
             }
         }
         
-        // Initialize with default values
-        updatePerformanceStatistics()
-        updateSensorStatus()
+        // Initialize with current values
+        val currentSession = ScanningSessionManager.sessionData.value
+        val currentSensorStatus = ScanningSessionManager.sensorStatus.value
+        updatePerformanceStatistics(currentSession)
+        updateSensorStatus(currentSensorStatus)
     }
     
     private fun updateSystemHealthUI() {
@@ -235,44 +250,57 @@ class PerformanceDashboardActivity : AppCompatActivity() {
         }
     }
     
-    private fun updatePerformanceStatistics() {
+    private fun updatePerformanceStatistics(sessionData: com.environmentalimaging.app.data.SessionData) {
         runOnUiThread {
-            // Update with current performance data
-            landmarkCountValue.text = performanceData.landmarkCount.toString()
-            measurementCountValue.text = performanceData.measurementCount.toString()
-            accuracyValue.text = String.format("%.2fm", performanceData.averageAccuracy)
+            // Update with real session data
+            landmarkCountValue.text = sessionData.landmarkCount.toString()
+            measurementCountValue.text = sessionData.measurementCount.toString()
+            accuracyValue.text = String.format("%.2fm", sessionData.averageAccuracy)
             
             // Format scan duration
-            val minutes = performanceData.scanDurationSeconds / 60
-            val seconds = performanceData.scanDurationSeconds % 60
+            val duration = ScanningSessionManager.getSessionDuration()
+            val minutes = duration / 60
+            val seconds = duration % 60
             scanDurationValue.text = String.format("%d:%02d", minutes, seconds)
         }
     }
     
-    private fun updateSensorStatus() {
+    private fun updateSensorStatus(sensorStatus: com.environmentalimaging.app.data.RealTimeSensorStatus) {
         runOnUiThread {
-            // Update sensor status indicators
-            // This would typically get real sensor status from the main app
+            // Update sensor status indicators with real data
             updateSensorStatusIndicator(
-                cameraStatusIcon, cameraStatusText, 
-                performanceData.sensorStatus.camera, "Camera"
+                cameraStatusIcon, cameraStatusText,
+                getSensorStatus(sensorStatus.cameraAvailable, sensorStatus.cameraActive),
+                "Camera"
             )
             updateSensorStatusIndicator(
-                uwbStatusIcon, uwbStatusText, 
-                performanceData.sensorStatus.uwb, "Ultra-Wideband"
+                uwbStatusIcon, uwbStatusText,
+                SensorStatus.Status.UNAVAILABLE, // UWB not implemented yet
+                "Ultra-Wideband"
             )
             updateSensorStatusIndicator(
-                wifiStatusIcon, wifiStatusText, 
-                performanceData.sensorStatus.wifiRtt, "WiFi RTT"
+                wifiStatusIcon, wifiStatusText,
+                getSensorStatus(sensorStatus.wifiRttAvailable, sensorStatus.wifiRttActive),
+                "WiFi RTT"
             )
             updateSensorStatusIndicator(
-                bluetoothStatusIcon, bluetoothStatusText, 
-                performanceData.sensorStatus.bluetooth, "Bluetooth"
+                bluetoothStatusIcon, bluetoothStatusText,
+                getSensorStatus(sensorStatus.bluetoothAvailable, sensorStatus.bluetoothActive),
+                "Bluetooth"
             )
             updateSensorStatusIndicator(
-                imuStatusIcon, imuStatusText, 
-                performanceData.sensorStatus.imu, "IMU"
+                imuStatusIcon, imuStatusText,
+                getSensorStatus(sensorStatus.imuAvailable, sensorStatus.imuActive),
+                "IMU"
             )
+        }
+    }
+    
+    private fun getSensorStatus(available: Boolean, active: Boolean): SensorStatus.Status {
+        return when {
+            !available -> SensorStatus.Status.UNAVAILABLE
+            active -> SensorStatus.Status.ACTIVE
+            else -> SensorStatus.Status.INACTIVE
         }
     }
     
@@ -294,14 +322,14 @@ class PerformanceDashboardActivity : AppCompatActivity() {
                 text.setTextColor(ContextCompat.getColor(this, R.color.warning))
             }
             SensorStatus.Status.INACTIVE -> {
-                icon.setColorFilter(ContextCompat.getColor(this, R.color.error))
-                text.text = "Inactive"
-                text.setTextColor(ContextCompat.getColor(this, R.color.error))
+                icon.setColorFilter(ContextCompat.getColor(this, R.color.text_secondary))
+                text.text = "Ready"
+                text.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
             }
             SensorStatus.Status.UNAVAILABLE -> {
-                icon.setColorFilter(ContextCompat.getColor(this, R.color.on_surface_variant))
+                icon.setColorFilter(ContextCompat.getColor(this, R.color.error))
                 text.text = "Unavailable"
-                text.setTextColor(ContextCompat.getColor(this, R.color.on_surface_variant))
+                text.setTextColor(ContextCompat.getColor(this, R.color.error))
             }
         }
     }
