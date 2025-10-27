@@ -540,15 +540,18 @@ class TrajectoryRenderer {
     
     fun render(trajectory: List<DevicePose>, mvpMatrix: FloatArray) {
         if (trajectory.isEmpty()) return
-        
+
+        // Create a defensive copy to avoid ConcurrentModificationException
+        val trajectoryCopy = ArrayList(trajectory)
+
         // Safety check and limit trajectory size to prevent crashes
-        val safeTrajectory = if (trajectory.size > 1000) {
-            Log.w(TAG, "Trajectory too large (${trajectory.size}), limiting to 1000 points")
-            trajectory.take(1000)
+        val safeTrajectory = if (trajectoryCopy.size > 1000) {
+            Log.w(TAG, "Trajectory too large (${trajectoryCopy.size}), limiting to 1000 points")
+            trajectoryCopy.take(1000)
         } else {
-            trajectory
+            trajectoryCopy
         }
-        
+
         if (safeTrajectory.size < 2) return
         
         // Prepare line vertices
