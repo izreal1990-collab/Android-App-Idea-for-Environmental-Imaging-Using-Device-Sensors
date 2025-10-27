@@ -152,6 +152,20 @@ class ConversationalAIActivity : AppCompatActivity() {
             }
         }
         
+        // IME action listener for send
+        inputEditText.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) {
+                val input = inputEditText.text?.toString()?.trim()
+                if (!input.isNullOrEmpty()) {
+                    processUserInput(input)
+                    inputEditText.text?.clear()
+                }
+                true
+            } else {
+                false
+            }
+        }
+        
         // Voice button
         voiceButton.setOnClickListener {
             if (isListening) {
@@ -169,6 +183,16 @@ class ConversationalAIActivity : AppCompatActivity() {
                 sendButton.isEnabled = !s.isNullOrEmpty() && !isProcessing
             }
         })
+        
+        // Focus listener to ensure keyboard shows
+        inputEditText.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                inputEditText.post {
+                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                    imm.showSoftInput(inputEditText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+                }
+            }
+        }
     }
     
     private fun checkAudioPermission() {

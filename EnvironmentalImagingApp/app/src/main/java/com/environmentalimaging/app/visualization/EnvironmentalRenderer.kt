@@ -385,22 +385,46 @@ class PointCloudRenderer {
     fun render(points: List<Point3D>, mvpMatrix: FloatArray) {
         if (points.isEmpty()) return
         
-        // Prepare vertex data
-        val vertices = FloatArray(points.size * 3)
-        val colors = FloatArray(points.size * 4)
+        // Safety check and limit point cloud size
+        val safePoints = if (points.size > 10000) {
+            Log.w(TAG, "Point cloud too large (${points.size}), limiting to 10000 points")
+            points.take(10000)
+        } else {
+            points
+        }
         
-        for (i in points.indices) {
-            val point = points[i]
-            vertices[i * 3] = point.x
-            vertices[i * 3 + 1] = point.y
-            vertices[i * 3 + 2] = point.z
-            
-            // Color based on height (z-coordinate)
-            val normalizedZ = (point.z + 5f) / 10f // Assuming height range -5 to 5
-            colors[i * 4] = normalizedZ.coerceIn(0f, 1f) // Red
-            colors[i * 4 + 1] = (1f - normalizedZ).coerceIn(0f, 1f) // Green
-            colors[i * 4 + 2] = 0.5f // Blue
-            colors[i * 4 + 3] = 0.8f // Alpha
+        val pointsSize = safePoints.size
+        
+        // Prepare vertex data
+        val vertices = FloatArray(pointsSize * 3)
+        val colors = FloatArray(pointsSize * 4)
+        
+        try {
+            for (i in 0 until pointsSize) {
+                val point = safePoints[i]
+                val vertexIndex = i * 3
+                val colorIndex = i * 4
+                
+                // Bounds check
+                if (vertexIndex + 2 >= vertices.size || colorIndex + 3 >= colors.size) {
+                    Log.e(TAG, "Index out of bounds in point cloud: i=$i")
+                    break
+                }
+                
+                vertices[vertexIndex] = point.x
+                vertices[vertexIndex + 1] = point.y
+                vertices[vertexIndex + 2] = point.z
+                
+                // Color based on height (z-coordinate)
+                val normalizedZ = (point.z + 5f) / 10f // Assuming height range -5 to 5
+                colors[colorIndex] = normalizedZ.coerceIn(0f, 1f) // Red
+                colors[colorIndex + 1] = (1f - normalizedZ).coerceIn(0f, 1f) // Green
+                colors[colorIndex + 2] = 0.5f // Blue
+                colors[colorIndex + 3] = 0.8f // Alpha
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error preparing point cloud data", e)
+            return
         }
         
         // Create buffers
@@ -435,7 +459,7 @@ class PointCloudRenderer {
         GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, mvpMatrix, 0)
         
         // Draw points
-        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, points.size)
+        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, pointsSize)
         
         // Disable vertex arrays
         GLES20.glDisableVertexAttribArray(positionHandle)
@@ -515,24 +539,49 @@ class TrajectoryRenderer {
     }
     
     fun render(trajectory: List<DevicePose>, mvpMatrix: FloatArray) {
-        if (trajectory.size < 2) return
+        if (trajectory.isEmpty()) return
+        
+        // Safety check and limit trajectory size to prevent crashes
+        val safeTrajectory = if (trajectory.size > 1000) {
+            Log.w(TAG, "Trajectory too large (${trajectory.size}), limiting to 1000 points")
+            trajectory.take(1000)
+        } else {
+            trajectory
+        }
+        
+        if (safeTrajectory.size < 2) return
         
         // Prepare line vertices
-        val vertices = FloatArray(trajectory.size * 3)
-        val colors = FloatArray(trajectory.size * 4)
+        val trajectorySize = safeTrajectory.size
+        val vertices = FloatArray(trajectorySize * 3)
+        val colors = FloatArray(trajectorySize * 4)
         
-        for (i in trajectory.indices) {
-            val pose = trajectory[i]
-            vertices[i * 3] = pose.position.x
-            vertices[i * 3 + 1] = pose.position.y
-            vertices[i * 3 + 2] = pose.position.z
-            
-            // Color gradient from blue (start) to green (end)
-            val t = i.toFloat() / (trajectory.size - 1)
-            colors[i * 4] = 0f // Red
-            colors[i * 4 + 1] = t // Green
-            colors[i * 4 + 2] = 1f - t // Blue
-            colors[i * 4 + 3] = 1f // Alpha
+        try {
+            for (i in 0 until trajectorySize) {
+                val pose = safeTrajectory[i]
+                val vertexIndex = i * 3
+                val colorIndex = i * 4
+                
+                // Bounds check
+                if (vertexIndex + 2 >= vertices.size || colorIndex + 3 >= colors.size) {
+                    Log.e(TAG, "Index out of bounds: i=$i, vertexIndex=$vertexIndex, colorIndex=$colorIndex")
+                    break
+                }
+                
+                vertices[vertexIndex] = pose.position.x
+                vertices[vertexIndex + 1] = pose.position.y
+                vertices[vertexIndex + 2] = pose.position.z
+                
+                // Color gradient from blue (start) to green (end)
+                val t = if (trajectorySize > 1) i.toFloat() / (trajectorySize - 1) else 0f
+                colors[colorIndex] = 0f // Red
+                colors[colorIndex + 1] = t // Green
+                colors[colorIndex + 2] = 1f - t // Blue
+                colors[colorIndex + 3] = 1f // Alpha
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error preparing trajectory data", e)
+            return
         }
         
         val vertexBuffer = ByteBuffer.allocateDirect(vertices.size * 4)
@@ -560,7 +609,7 @@ class TrajectoryRenderer {
         GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, mvpMatrix, 0)
         
         GLES20.glLineWidth(3.0f)
-        GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, trajectory.size)
+        GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, trajectorySize)
         
         GLES20.glDisableVertexAttribArray(positionHandle)
         GLES20.glDisableVertexAttribArray(colorHandle)
