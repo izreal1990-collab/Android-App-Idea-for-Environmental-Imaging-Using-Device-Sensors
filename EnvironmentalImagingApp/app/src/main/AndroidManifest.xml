@@ -78,6 +78,19 @@
             android:theme="@style/Theme.EnvironmentalImagingApp"
             android:parentActivityName=".MainActivity" />
         
+        <activity
+            android:name=".ai.ConversationalAIActivity"
+            android:exported="false"
+            android:theme="@style/Theme.EnvironmentalImagingApp"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName=".MainActivity" />
+        
+        <activity
+            android:name=".Enhanced3DVisualizationActivity"
+            android:exported="false"
+            android:theme="@style/Theme.EnvironmentalImagingApp"
+            android:parentActivityName=".MainActivity" />
+        
         <service
             android:name=".services.EnvironmentalScanService"
             android:enabled="true"
